@@ -36,6 +36,7 @@ export async function createInvite(params: {
   email: string | null;
   role: UserRole;
   createdBy: string;
+  participantId?: string | null;
 }): Promise<Invite> {
   const code = generateInviteCode();
   const invite: Invite = {
@@ -48,6 +49,7 @@ export async function createInvite(params: {
     used: false,
     usedBy: null,
     usedAt: null,
+    participantId: params.participantId ?? null,
   };
   await setDoc(doc(firestore, INVITES_COLLECTION, code), invite);
   return invite;

@@ -12,9 +12,10 @@ import {
   Link2Off,
   Shield,
 } from "lucide-react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
 import { useStore } from "../lib/store";
+import { useAuth } from "../lib/auth";
 import { useToast } from "./Toast";
 import { useConfirm } from "./ConfirmProvider";
 import { deleteInvite, subscribeInvites } from "../lib/invites";
@@ -28,7 +29,8 @@ import Modal from "./Modal";
 type Tab = "invites" | "users";
 
 export default function AdminAccounts() {
-  const { data } = useStore();
+  const { data, addParticipant } = useStore();
+  const { user: currentUser } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -113,6 +115,65 @@ export default function AdminAccounts() {
     }
   };
 
+  const handleCreateWithParticipant = async (params: {
+    displayName: string;
+    email: string | null;
+    role: UserRole;
+  }) => {
+    // Find or create a participant record for this invite.
+    let participantId: string | null = null;
+
+    if (params.role === "participant") {
+      const normalized = normalizeName(params.displayName);
+      const existing = data.participants.find(
+        (p) => normalizeName(p.name) === normalized,
+      );
+      if (existing) {
+        participantId = existing.id;
+      } else {
+        const created = addParticipant({
+          name: params.displayName.trim(),
+          status: "confirmed",
+          notes: "Auto-created from invite",
+        });
+        participantId = created.id;
+      }
+    }
+
+    const { createInvite } = await import("../lib/invites");
+    const invite = await createInvite({
+      displayName: params.displayName,
+      email: params.email,
+      role: params.role,
+      createdBy: currentUser?.id ?? "",
+      participantId,
+    });
+    setCreating(false);
+    setJustCreated(invite);
+    setError(null);
+    toast.success("Invite code created", "Ready to share");
+  };
+
+  const handleDeleteUser = async (u: DirectoryUser) => {
+    const ok = await confirm({
+      title: `Delete ${u.displayName}'s account?`,
+      message:
+        "Their Firestore profile will be removed and they will no longer be able to sign in. The Firebase Authentication record stays but access is revoked.",
+      confirmText: "Delete account",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteDoc(doc(firestore, USERS_COLLECTION, u.uid));
+      toast.success(`${u.displayName} removed`, "Account deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Delete failed.",
+        "Error",
+      );
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center gap-1 p-1 rounded-xl bg-midnight/60 border border-purpleDark/60">
@@ -154,8 +215,9 @@ export default function AdminAccounts() {
                 Invite participants
               </h2>
               <p className="text-xs text-textSecondary max-w-md">
-                Generate an invite code, send it to the person. They choose
-                their own password — you never need to see it.
+                When you create a participant invite, Northscape also creates
+                their participant record. The moment they redeem, they're linked
+                automatically.
               </p>
             </div>
             <Button onClick={() => setCreating(true)}>
@@ -184,6 +246,11 @@ export default function AdminAccounts() {
                 <InviteRow
                   key={i.code}
                   invite={i}
+                  participantName={
+                    i.participantId
+                      ? participantById[i.participantId]?.name
+                      : undefined
+                  }
                   onDelete={async () => {
                     const ok = await confirm({
                       title: `Delete invite ${i.code}?`,
@@ -210,6 +277,11 @@ export default function AdminAccounts() {
                 <InviteRow
                   key={i.code}
                   invite={i}
+                  participantName={
+                    i.participantId
+                      ? participantById[i.participantId]?.name
+                      : undefined
+                  }
                   onDelete={async () => {
                     const ok = await confirm({
                       title: `Delete used invite ${i.code}?`,
@@ -241,9 +313,7 @@ export default function AdminAccounts() {
               </h2>
               <p className="text-xs text-textSecondary mb-4">
                 These users signed up but aren't connected to a participant
-                record. If their name matches a participant, they'll link
-                automatically next time they sign in. You can also link them
-                manually below.
+                record. Link them manually below.
               </p>
             </section>
           )}
@@ -315,30 +385,34 @@ export default function AdminAccounts() {
                         )}
                       </div>
 
-                      {u.role !== "admin" && (
-                        <div className="flex gap-2">
-                          {isLinked ? (
-                            <button
-                              onClick={() => handleUnlinkUser(u)}
-                              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-purpleDark/60 text-textSecondary hover:text-coral hover:border-coral/40 transition-colors inline-flex items-center gap-1"
-                            >
-                              <Link2Off className="w-3 h-3" /> Unlink
-                            </button>
-                          ) : nameMatch ? (
-                            <button
-                              onClick={() => handleLinkUserToMatch(u)}
-                              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-peach text-midnight font-medium hover:bg-coral transition-colors inline-flex items-center gap-1"
-                            >
-                              <Link2 className="w-3 h-3" />
-                              Link to "{nameMatch.name}"
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-lavenderMist italic">
-                              No matching participant
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex gap-2">
+                        {u.role !== "admin" && !isLinked && nameMatch && (
+                          <button
+                            onClick={() => handleLinkUserToMatch(u)}
+                            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-peach text-midnight font-medium hover:bg-coral transition-colors inline-flex items-center gap-1"
+                          >
+                            <Link2 className="w-3 h-3" />
+                            Link to "{nameMatch.name}"
+                          </button>
+                        )}
+                        {u.role !== "admin" && isLinked && (
+                          <button
+                            onClick={() => handleUnlinkUser(u)}
+                            className="text-[11px] px-2.5 py-1.5 rounded-lg border border-purpleDark/60 text-textSecondary hover:text-coral hover:border-coral/40 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Link2Off className="w-3 h-3" /> Unlink
+                          </button>
+                        )}
+                        {u.uid !== currentUser?.id && (
+                          <button
+                            onClick={() => handleDeleteUser(u)}
+                            className="text-[11px] px-2.5 py-1.5 rounded-lg border border-purpleDark/60 text-textSecondary hover:text-coral hover:border-coral/40 transition-colors inline-flex items-center gap-1"
+                            title="Delete account"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -351,12 +425,7 @@ export default function AdminAccounts() {
       <InviteModal
         open={creating}
         onClose={() => setCreating(false)}
-        onCreated={(invite) => {
-          setCreating(false);
-          setJustCreated(invite);
-          setError(null);
-          toast.success("Invite code created", "Ready to share");
-        }}
+        onCreated={handleCreateWithParticipant}
         onError={setError}
       />
 
@@ -370,9 +439,11 @@ export default function AdminAccounts() {
 
 function InviteRow({
   invite,
+  participantName,
   onDelete,
 }: {
   invite: Invite;
+  participantName?: string;
   onDelete: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -407,6 +478,12 @@ function InviteRow({
         <p className="text-[11px] text-textSecondary truncate">
           {invite.email ?? "No email lock"}
         </p>
+        {participantName && (
+          <p className="text-[10px] text-forest mt-0.5 inline-flex items-center gap-1">
+            <Link2 className="w-2.5 h-2.5" /> Bound to participant "
+            {participantName}"
+          </p>
+        )}
         <p className="font-mono text-xs text-peach mt-0.5">{invite.code}</p>
       </div>
 
@@ -444,7 +521,11 @@ function InviteModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: (invite: Invite) => void;
+  onCreated: (params: {
+    displayName: string;
+    email: string | null;
+    role: UserRole;
+  }) => Promise<void>;
   onError: (msg: string) => void;
 }) {
   const [name, setName] = useState("");
@@ -470,14 +551,11 @@ function InviteModal({
     if (!canSave) return;
     setBusy(true);
     try {
-      const { createInvite } = await import("../lib/invites");
-      const invite = await createInvite({
-        displayName: name,
-        email: lockEmail ? email : null,
+      await onCreated({
+        displayName: name.trim(),
+        email: lockEmail ? email.trim().toLowerCase() : null,
         role,
-        createdBy: "admin",
       });
-      onCreated(invite);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to create invite.");
     } finally {
@@ -494,7 +572,7 @@ function InviteModal({
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Rafi"
           autoFocus
-          hint="Use the exact same name as the participant record if you've already added them."
+          hint="A participant record will be created with this name."
         />
 
         <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-purpleDark/70 bg-midnight/40 cursor-pointer text-sm">
@@ -531,7 +609,8 @@ function InviteModal({
 
         {role === "admin" && (
           <div className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-xs text-gold">
-            Administrators have full access to edit everything.
+            Administrators have full access to edit everything. No participant
+            record is created for admins.
           </div>
         )}
 
@@ -609,6 +688,12 @@ function ShowCodeModal({
             <p>
               <span className="text-lavenderMist">Locked to:</span>{" "}
               {invite.email}
+            </p>
+          )}
+          {invite.participantId && (
+            <p className="text-forest">
+              A participant record was created and will link automatically when
+              redeemed.
             </p>
           )}
         </div>

@@ -24,7 +24,6 @@ export interface AuthUser {
   displayName: string;
   role: UserRole;
   participantId?: string;
-  // Participant-editable profile fields:
   nickname: string;
   photoUrl: string;
   contact: string;
@@ -202,12 +201,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(friendlyAuthError(err));
       }
 
+      // Create the user profile doc.
+      // If the invite carries a participantId, link instantly.
       try {
         await setDoc(doc(firestore, USERS_COLLECTION, cred.user.uid), {
           email: cred.user.email,
           displayName: invite.displayName,
           role: invite.role,
           inviteCode: invite.code,
+          participantId: invite.participantId ?? null,
           nickname: "",
           photoUrl: "",
           contact: "",
@@ -222,6 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
+      // Mark the invite as used (best effort).
       try {
         await markInviteUsed(invite.code, cred.user.uid);
       } catch (err) {
@@ -244,7 +247,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error("Not signed in.");
     const ref = doc(firestore, USERS_COLLECTION, current.uid);
-    // Never allow role or email change from this method.
     const allowed: Record<string, unknown> = {};
     if (patch.displayName !== undefined)
       allowed.displayName = patch.displayName.trim();
@@ -255,7 +257,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     await updateDoc(ref, allowed);
 
-    // Update the local state immediately.
     setUser((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 

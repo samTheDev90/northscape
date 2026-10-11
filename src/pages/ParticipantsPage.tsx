@@ -16,6 +16,8 @@ import {
   Link2,
   Link2Off,
 } from "lucide-react";
+import { doc, deleteDoc } from "firebase/firestore";
+import { firestore, USERS_COLLECTION } from "../lib/firebase";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../components/Toast";
@@ -124,18 +126,35 @@ export default function ParticipantsPage() {
   const handleRemove = async (p: Participant) => {
     const linkedUser = userByParticipant[p.id];
     const message = linkedUser
-      ? `${linkedUser.displayName}'s account will be unlinked from this participant record. Their contribution records will also be removed.`
+      ? `Their signed-in account (${linkedUser.email}) will be revoked — they will no longer be able to sign in. Their contribution records will also be removed. This cannot be undone.`
       : "Their contribution record will also be removed. Financial history for shared expenses is preserved for the remaining participants.";
     const ok = await confirm({
       title: `Remove ${p.name}?`,
       message,
-      confirmText: "Remove",
+      confirmText: linkedUser ? "Remove & revoke" : "Remove",
       danger: true,
     });
-    if (ok) {
-      removeParticipant(p.id);
-      toast.success(`${p.name} removed`, "Participant removed");
+    if (!ok) return;
+
+    // If there's a linked user, revoke their access first.
+    if (linkedUser) {
+      try {
+        await deleteDoc(doc(firestore, USERS_COLLECTION, linkedUser.uid));
+        toast.info(
+          `${linkedUser.displayName}'s account was revoked`,
+          "Account deleted",
+        );
+      } catch (err) {
+        console.error("Failed to delete user doc:", err);
+        toast.error(
+          "Participant removed, but their account could not be deleted.",
+          "Partial removal",
+        );
+      }
     }
+
+    removeParticipant(p.id);
+    toast.success(`${p.name} removed`, "Participant removed");
   };
 
   if (!ready) {
@@ -195,7 +214,7 @@ export default function ParticipantsPage() {
           title="No participants yet"
           description={
             isAdmin
-              ? "Add your travel companions to start tracking contributions."
+              ? "Add your travel companions. Or generate an invite — a participant record is created automatically."
               : "The organizer hasn't added participants yet."
           }
           action={
@@ -303,7 +322,7 @@ export default function ParticipantsPage() {
                         <Link2Off className="w-3 h-3" /> Not linked
                       </p>
                       <p className="text-[10px] text-lavenderMist mt-0.5">
-                        No signed-up account is attached to this person yet.
+                        No signed-up account yet.
                       </p>
                       {isAdmin && (
                         <button

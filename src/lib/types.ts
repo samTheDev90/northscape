@@ -1,5 +1,5 @@
 // ============================================================================
-// Panchagarh Voyage — Core Data Model
+// Northscape — Core Data Model
 // ============================================================================
 
 export type ID = string;
@@ -65,6 +65,12 @@ export interface Invite {
   used: boolean;
   usedBy: string | null;
   usedAt: string | null;
+  /**
+   * Participant record this invite is bound to.
+   * Pre-created by admin when the invite is generated, so the user is
+   * linked the moment they redeem.
+   */
+  participantId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,10 +140,6 @@ export interface ExpenseCategory {
   isSystem: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Destination — full article-capable record
-// ---------------------------------------------------------------------------
-
 export interface Destination {
   id: ID;
   name: string;
@@ -161,20 +163,18 @@ export interface Destination {
   verified: boolean;
   createdAt: string;
   updatedAt: string;
-
-  // --- Article fields (all optional, gracefully absent) ---
-  category: string; // e.g. "Nature", "Landmark"
-  bestTime: string; // e.g. "Sunrise"
-  timeNeeded: string; // e.g. "1–2 hrs"
-  estCost: string; // e.g. "Free" or "৳50"
+  category: string;
+  bestTime: string;
+  timeNeeded: string;
+  estCost: string;
   status: DestinationStatus;
-  overview: string; // long-form "About this place"
-  highlights: string; // "Specialty & highlights"
-  originStory: string; // quoted or italic origin
-  history: string; // "History" section
-  visitingTips: string[]; // sidebar bullet list
-  galleryImageUrls: string[]; // gallery grid
-  articleAuthor: string; // e.g. "Trip Organizer"
+  overview: string;
+  highlights: string;
+  originStory: string;
+  history: string;
+  visitingTips: string[];
+  galleryImageUrls: string[];
+  articleAuthor: string;
 }
 
 export interface ItineraryActivity {
