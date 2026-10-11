@@ -7,8 +7,6 @@ import {
   Loader2,
   Pencil,
   X,
-  Calendar,
-  Wallet,
   Sunrise,
   Clock,
   Coffee,

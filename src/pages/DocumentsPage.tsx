@@ -11,7 +11,6 @@ import {
   FileJson,
   Loader2,
   RotateCcw,
-  AlertTriangle,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useToast } from "../components/Toast";
@@ -259,8 +258,8 @@ export default function DocumentsPage() {
     if (!ok) return;
     try {
       const text = await restoreFile.text();
-      const data = parseBackup(text);
-      importBackup(data);
+      const parsed = parseBackup(text);
+      importBackup(parsed);
       setRestoreFile(null);
       toast.success("Trip data restored from backup", "Restore complete");
     } catch (err) {

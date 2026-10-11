@@ -2,14 +2,12 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   UploadCloud,
-  FileSpreadsheet,
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
   XCircle,
   Loader2,
-  X,
   Users,
   Wallet,
 } from "lucide-react";
@@ -25,9 +23,7 @@ import {
   validateRows,
   type ImportTarget,
   type ParsedWorkbook,
-  type ValidatedRow,
 } from "../lib/import";
-import { formatBDT } from "../lib/money";
 import Button from "../components/PrimaryButton";
 import { Select } from "../components/FormField";
 
@@ -41,7 +37,6 @@ export default function ImportPage() {
 
   const [step, setStep] = useState<Step>("target");
   const [target, setTarget] = useState<ImportTarget | null>(null);
-  const [file, setFile] = useState<File | null>(null);
   const [workbook, setWorkbook] = useState<ParsedWorkbook | null>(null);
   const [sheetName, setSheetName] = useState<string>("");
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -50,7 +45,6 @@ export default function ImportPage() {
 
   const [importedCount, setImportedCount] = useState(0);
 
-  // Reset downstream state when target changes
   const pickTarget = (t: ImportTarget) => {
     setTarget(t);
     setStep("file");
@@ -58,7 +52,6 @@ export default function ImportPage() {
 
   const handleFile = async (f: File) => {
     setParsing(true);
-    setFile(f);
     try {
       const wb = await parseSpreadsheet(f);
       setWorkbook(wb);
@@ -72,7 +65,6 @@ export default function ImportPage() {
         err instanceof Error ? err.message : "Could not read the file.",
         "Import failed",
       );
-      setFile(null);
     } finally {
       setParsing(false);
     }
@@ -85,7 +77,6 @@ export default function ImportPage() {
     setMapping(autoMapColumns(sheet.headers, target));
   };
 
-  // Validation
   const validation = useMemo(() => {
     if (!workbook || !target || !sheetName) return null;
     const sheet = workbook.sheets[sheetName];
@@ -172,7 +163,6 @@ export default function ImportPage() {
   const reset = () => {
     setStep("target");
     setTarget(null);
-    setFile(null);
     setWorkbook(null);
     setSheetName("");
     setMapping({});
@@ -199,7 +189,6 @@ export default function ImportPage() {
         </div>
       </div>
 
-      {/* Stepper */}
       <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-1">
         <StepDot
           n={1}
@@ -232,7 +221,6 @@ export default function ImportPage() {
         <StepDot n={5} label="Done" active={step === "done"} done={false} />
       </div>
 
-      {/* STEP: TARGET */}
       {step === "target" && (
         <div className="pv-fade-up">
           <h2 className="font-serif text-lg text-textPrimary mb-4">
@@ -255,7 +243,6 @@ export default function ImportPage() {
         </div>
       )}
 
-      {/* STEP: FILE */}
       {step === "file" && (
         <div className="pv-fade-up">
           <h2 className="font-serif text-lg text-textPrimary mb-4">
@@ -270,7 +257,6 @@ export default function ImportPage() {
         </div>
       )}
 
-      {/* STEP: MAP */}
       {step === "map" && workbook && target && (
         <div className="pv-fade-up">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -361,7 +347,6 @@ export default function ImportPage() {
         </div>
       )}
 
-      {/* STEP: PREVIEW */}
       {step === "preview" && validation && (
         <PreviewStep
           validation={validation}
@@ -373,7 +358,6 @@ export default function ImportPage() {
         />
       )}
 
-      {/* STEP: DONE */}
       {step === "done" && (
         <div className="pv-fade-up text-center py-12">
           <div className="w-16 h-16 mx-auto rounded-full bg-forest/15 border border-forest/40 flex items-center justify-center mb-4">
@@ -402,10 +386,6 @@ export default function ImportPage() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Stepper helpers
-// ---------------------------------------------------------------------------
 
 function StepDot({
   n,
@@ -446,10 +426,6 @@ function StepSep() {
   return <div className="w-6 md:w-10 h-px bg-purpleDark/60 shrink-0" />;
 }
 
-// ---------------------------------------------------------------------------
-// Target picker
-// ---------------------------------------------------------------------------
-
 function TargetCard({
   icon: Icon,
   title,
@@ -476,10 +452,6 @@ function TargetCard({
     </button>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Drop zone
-// ---------------------------------------------------------------------------
 
 function DropZone({
   onFile,
@@ -540,10 +512,6 @@ function DropZone({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Preview step
-// ---------------------------------------------------------------------------
-
 function PreviewStep({
   validation,
   mapping,
@@ -572,7 +540,6 @@ function PreviewStep({
         Preview & confirm
       </h2>
 
-      {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard
           value={String(validation.valid.length)}
@@ -596,7 +563,6 @@ function PreviewStep({
         />
       </div>
 
-      {/* Issues list */}
       {(validation.errors.length > 0 || validation.warnings.length > 0) && (
         <div className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden mb-6">
           <div className="px-5 py-3 border-b border-purpleDark/60">
@@ -625,7 +591,6 @@ function PreviewStep({
         </div>
       )}
 
-      {/* Preview table */}
       <div className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden mb-6">
         <div className="px-5 py-3 border-b border-purpleDark/60 flex items-center justify-between">
           <p className="text-sm text-textPrimary font-medium">
@@ -677,7 +642,6 @@ function PreviewStep({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft className="w-4 h-4" /> Back to mapping

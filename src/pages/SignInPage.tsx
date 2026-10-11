@@ -4,7 +4,7 @@ import { LogIn, TicketCheck, Mountain, Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import Button from "../components/PrimaryButton";
 import { TextInput } from "../components/FormField";
-import { fetchInvite, normalizeCode } from "../lib/invites";
+import { fetchInvite } from "../lib/invites";
 import type { Invite } from "../lib/types";
 
 type Tab = "signin" | "invite";

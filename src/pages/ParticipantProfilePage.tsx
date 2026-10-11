@@ -3,9 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
-  Mail,
   Phone,
-  Wallet,
   Shield,
   CheckCircle2,
   Clock,
@@ -103,7 +101,6 @@ export default function ParticipantProfilePage() {
   const progressPct =
     plannedAmount > 0 ? Math.min(100, (actualAmount / plannedAmount) * 100) : 0;
 
-  // Activities this person is connected to (via paid expenses or shared)
   const expensesThisPersonPaid = data.expenses.filter((e) => e.paidBy === p.id);
   const totalPaidDirectly = expensesThisPersonPaid.reduce(
     (s, e) => s + (e.actualAmount || e.amount || 0),
@@ -112,7 +109,6 @@ export default function ParticipantProfilePage() {
 
   return (
     <div className="pb-16">
-      {/* ==================== COVER ==================== */}
       <section className="relative h-56 md:h-64 overflow-hidden">
         <img
           src={COVER_IMG}
@@ -132,7 +128,6 @@ export default function ParticipantProfilePage() {
         </div>
       </section>
 
-      {/* ==================== PROFILE CARD ==================== */}
       <div className="max-w-4xl mx-auto px-4 md:px-6 -mt-20 md:-mt-24 relative z-10">
         <div className="rounded-3xl border border-purpleDark/60 bg-indigoDeep/95 backdrop-blur-xl shadow-soft p-6 md:p-7">
           <div className="flex flex-col md:flex-row md:items-center gap-5">
@@ -187,7 +182,6 @@ export default function ParticipantProfilePage() {
             )}
           </div>
 
-          {/* Contact info */}
           {(p.contact || p.notes) && (
             <div className="mt-6 pt-6 border-t border-purpleDark/40 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               {p.contact && (
@@ -215,7 +209,6 @@ export default function ParticipantProfilePage() {
           )}
         </div>
 
-        {/* ==================== STATS ==================== */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-8">
           <StatBox
             label="Contribution"
@@ -267,12 +260,11 @@ export default function ParticipantProfilePage() {
           />
         </div>
 
-        {/* ==================== CONTRIBUTION PROGRESS ==================== */}
         {plannedAmount > 0 && (
           <section className="mt-6 rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-serif text-lg text-textPrimary flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-peach" />
+                <TrendingUp className="w-4 h-4 text-peach" />
                 Contribution progress
               </h2>
               <span className="text-xs text-textSecondary">
@@ -292,7 +284,6 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
-        {/* ==================== PAID EXPENSES ==================== */}
         {expensesThisPersonPaid.length > 0 && (
           <section className="mt-6 rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden">
             <div className="px-6 py-4 border-b border-purpleDark/60 flex items-center justify-between">
@@ -332,7 +323,6 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
-        {/* ==================== BADGES (own profile only) ==================== */}
         {isOwnProfile && (
           <section className="mt-6">
             <h2 className="font-serif text-lg text-textPrimary mb-4 flex items-center gap-2">
@@ -355,7 +345,6 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
-        {/* ==================== BACK ==================== */}
         <div className="mt-8 flex justify-center">
           <Link to="/participants">
             <Button variant="secondary">
