@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Plus,
-  Clock,
   MapPin,
-  Coins,
   AlertTriangle,
   Trash2,
   Pencil,
@@ -19,6 +17,8 @@ import {
   Copy,
   Check,
   GripVertical,
+  Moon,
+  BookOpen,
 } from "lucide-react";
 import {
   DndContext,
@@ -44,17 +44,15 @@ import { useConfirm } from "../components/ConfirmProvider";
 import {
   detectConflicts,
   durationMinutes,
+  isOvernight,
   timeToMinutes,
-  totalPlannedCost,
-  totalPlannedMinutes,
 } from "../lib/schedule";
-import { formatBDT } from "../lib/money";
 import Modal from "../components/Modal";
 import Button from "../components/PrimaryButton";
 import AdminOnly from "../components/AdminOnly";
 import { Select, TextArea, TextInput } from "../components/FormField";
 import EmptyState from "../components/EmptyState";
-import { Skeleton, SkeletonStats } from "../components/Skeleton";
+import { Skeleton } from "../components/Skeleton";
 import type { ItineraryActivity, TransportMode } from "../lib/types";
 
 const TRANSPORT_LABELS: Record<TransportMode, string> = {
@@ -150,25 +148,6 @@ export default function ItineraryPage() {
     return s;
   }, [conflicts]);
 
-  const plannedMins = totalPlannedMinutes(dayActivities);
-  const plannedCost = totalPlannedCost(dayActivities);
-
-  const timeline = useMemo(() => {
-    const result: {
-      activity: ItineraryActivity;
-      gapFromPrev: number | null;
-    }[] = [];
-    let prevEnd: number | null = null;
-    for (const a of dayActivities) {
-      const s = timeToMinutes(a.startTime);
-      const e = timeToMinutes(a.endTime);
-      const gap = prevEnd !== null && s >= 0 ? s - prevEnd : null;
-      result.push({ activity: a, gapFromPrev: gap });
-      if (e >= 0) prevEnd = e;
-    }
-    return result;
-  }, [dayActivities]);
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -235,12 +214,11 @@ export default function ItineraryPage() {
 
   if (!ready) {
     return (
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 md:py-10">
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-10">
         <Skeleton className="h-8 w-40 mb-3" />
         <Skeleton className="h-3 w-72 mb-6" />
         <Skeleton className="h-10 w-full max-w-sm mb-6 rounded-lg" />
-        <SkeletonStats />
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-32 rounded-2xl" />
           ))}
@@ -250,7 +228,8 @@ export default function ItineraryPage() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 md:py-10">
+    <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-10">
+      {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6 pv-fade-up no-print">
         <div>
           <h1 className="font-serif text-3xl md:text-4xl text-textPrimary mb-1">
@@ -258,8 +237,8 @@ export default function ItineraryPage() {
           </h1>
           <p className="text-textSecondary text-sm">
             {isAdmin
-              ? "Drag activities to reorder them. Every minute matters for the return train."
-              : "Plan the day carefully — every minute matters for the return train."}
+              ? "Drag activities to reorder them. Edit any card to change details."
+              : "The plan for our voyage."}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -310,6 +289,7 @@ export default function ItineraryPage() {
         </div>
       </div>
 
+      {/* Print header */}
       <div className="hidden print:block mb-6">
         <h1 className="font-serif text-3xl mb-1">{data.trip.name}</h1>
         <p className="text-sm">
@@ -318,7 +298,8 @@ export default function ItineraryPage() {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 no-print">
+      {/* Day tabs */}
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 no-print">
         {dayIndices.map((idx) => (
           <button
             key={idx}
@@ -334,7 +315,9 @@ export default function ItineraryPage() {
         ))}
         <AdminOnly>
           <button
-            onClick={() => setActiveDay(dayIndices[dayIndices.length - 1] + 1)}
+            onClick={() =>
+              setActiveDay(dayIndices[dayIndices.length - 1] + 1)
+            }
             className="px-3 py-2 rounded-lg text-sm border border-dashed border-purpleDark/60 text-textSecondary hover:text-peach hover:border-peach/50 whitespace-nowrap"
           >
             + New day
@@ -342,17 +325,7 @@ export default function ItineraryPage() {
         </AdminOnly>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 no-print">
-        <Stat label="Activities" value={String(dayActivities.length)} />
-        <Stat label="Planned time" value={formatDuration(plannedMins)} />
-        <Stat label="Planned cost" value={formatBDT(plannedCost)} />
-        <Stat
-          label="Conflicts"
-          value={String(conflicts.length)}
-          accent={conflicts.length > 0 ? "coral" : undefined}
-        />
-      </div>
-
+      {/* Conflicts banner */}
       {conflicts.length > 0 && (
         <div className="mb-6 rounded-2xl border border-coral/40 bg-coral/10 p-4 pv-fade-up no-print">
           <div className="flex items-start gap-3">
@@ -373,6 +346,7 @@ export default function ItineraryPage() {
         </div>
       )}
 
+      {/* Body */}
       {view === "compact" ? (
         <CompactView
           days={dayIndices.map((idx) => ({
@@ -383,118 +357,99 @@ export default function ItineraryPage() {
           }))}
           tripStartDate={data.trip.startDate}
         />
+      ) : dayActivities.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title="No activities yet"
+          description={
+            isAdmin
+              ? "Add your first activity for this day. Drag the handle to reorder them."
+              : "The organizer hasn't added activities for this day yet."
+          }
+          action={
+            isAdmin ? (
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="w-4 h-4" /> Add Activity
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8">
-            {dayActivities.length === 0 ? (
-              <EmptyState
-                icon={Clock}
-                title="No activities yet"
-                description={
-                  isAdmin
-                    ? "Add your first activity for this day. Drag the handle to reorder."
-                    : "The organizer hasn't added activities for this day yet."
-                }
-                action={
-                  isAdmin ? (
-                    <Button onClick={() => setCreating(true)}>
-                      <Plus className="w-4 h-4" /> Add Activity
-                    </Button>
-                  ) : undefined
-                }
-              />
-            ) : (
-              <div className="relative">
-                <div className="absolute left-[22px] top-3 bottom-3 w-px bg-gradient-to-b from-peach/60 via-purpleDark to-transparent no-print" />
+        <>
+          <div className="relative">
+            <div className="absolute left-[22px] top-3 bottom-3 w-px bg-gradient-to-b from-peach/60 via-purpleDark to-transparent no-print" />
 
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={dayActivities.map((a) => a.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-4">
-                      {timeline.map(({ activity, gapFromPrev }, i) => {
-                        const dur = durationMinutes(
-                          activity.startTime,
-                          activity.endTime,
-                        );
-                        const hasConflict = conflictIds.has(activity.id);
-                        return (
-                          <SortableActivity
-                            key={activity.id}
-                            id={activity.id}
-                            index={i}
-                            gapFromPrev={gapFromPrev}
-                          >
-                            {({ dragHandleProps, isDragging }) => (
-                              <ActivityCard
-                                activity={activity}
-                                durationMinutes={dur}
-                                conflict={hasConflict}
-                                canEdit={isAdmin}
-                                isDragging={isDragging}
-                                dragHandleProps={dragHandleProps}
-                                onEdit={() => setEditing(activity)}
-                                onRemove={() => handleDelete(activity)}
-                              />
-                            )}
-                          </SortableActivity>
-                        );
-                      })}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              </div>
-            )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={dayActivities.map((a) => a.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-4">
+                  {dayActivities.map((activity, i) => {
+                    const dur = durationMinutes(
+                      activity.startTime,
+                      activity.endTime,
+                    );
+                    const overnight = isOvernight(
+                      activity.startTime,
+                      activity.endTime,
+                    );
+                    const hasConflict = conflictIds.has(activity.id);
+                    const gapFromPrev =
+                      i > 0
+                        ? (() => {
+                            const prev = dayActivities[i - 1];
+                            const prevEnd = timeToMinutes(prev.endTime);
+                            const prevOvernight = isOvernight(
+                              prev.startTime,
+                              prev.endTime,
+                            );
+                            const unrolledEnd = prevOvernight
+                              ? prevEnd + 24 * 60
+                              : prevEnd;
+                            const s = timeToMinutes(activity.startTime);
+                            return s - (unrolledEnd % (24 * 60));
+                          })()
+                        : null;
+                    return (
+                      <SortableActivity
+                        key={activity.id}
+                        id={activity.id}
+                        index={i}
+                        gapFromPrev={gapFromPrev}
+                      >
+                        {({ dragHandleProps, isDragging }) => (
+                          <ActivityCard
+                            activity={activity}
+                            durationMinutes={dur}
+                            conflict={hasConflict}
+                            canEdit={isAdmin}
+                            isDragging={isDragging}
+                            dragHandleProps={dragHandleProps}
+                            overnight={overnight}
+                            onEdit={() => setEditing(activity)}
+                            onRemove={() => handleDelete(activity)}
+                          />
+                        )}
+                      </SortableActivity>
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
 
-          <aside className="lg:col-span-4 space-y-4 no-print">
-            <div className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-5 pv-card">
-              <h3 className="font-serif text-lg text-textPrimary mb-3">
-                Day {activeDay + 1} at a glance
-              </h3>
-              <div className="space-y-3 text-sm">
-                <SideRow
-                  label="First start"
-                  value={dayActivities[0]?.startTime ?? "—"}
-                />
-                <SideRow
-                  label="Last end"
-                  value={
-                    dayActivities[dayActivities.length - 1]?.endTime ?? "—"
-                  }
-                />
-                <SideRow
-                  label="Total activities"
-                  value={String(dayActivities.length)}
-                />
-                <SideRow
-                  label="Active time"
-                  value={formatDuration(plannedMins)}
-                />
-                <SideRow label="Planned cost" value={formatBDT(plannedCost)} />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-5 pv-card">
-              <h3 className="font-serif text-lg text-textPrimary mb-3">
-                Suggested structure
-              </h3>
-              <ul className="text-xs text-textSecondary space-y-2">
-                <li>• Arrival in Panchagarh in the morning</li>
-                <li>• Breakfast near the station or en route</li>
-                <li>• Tea gardens and rural roads mid-morning</li>
-                <li>• Lunch and rest</li>
-                <li>• Border or viewpoint in the afternoon</li>
-                <li>• Buffer and station arrival before return train</li>
-              </ul>
-            </div>
-          </aside>
-        </div>
+          {/* Written summary */}
+          <DaySummary
+            activities={dayActivities}
+            dayIndex={activeDay}
+            className="mt-8"
+          />
+        </>
       )}
 
       <AdminOnly>
@@ -521,6 +476,123 @@ export default function ItineraryPage() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Written summary
+// ---------------------------------------------------------------------------
+
+function DaySummary({
+  activities,
+  dayIndex,
+  className = "",
+}: {
+  activities: ItineraryActivity[];
+  dayIndex: number;
+  className?: string;
+}) {
+  const paragraphs = buildSummary(activities, dayIndex);
+  if (paragraphs.length === 0) return null;
+
+  return (
+    <section
+      className={`rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-6 ${className} print-keep`}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <BookOpen className="w-4 h-4 text-peach" />
+        <h2 className="font-serif text-lg text-textPrimary">
+          Day {dayIndex + 1} in summary
+        </h2>
+      </div>
+      <div className="space-y-4">
+        {paragraphs.map((p, i) => (
+          <p
+            key={i}
+            className="text-sm text-textSecondary leading-relaxed whitespace-pre-line"
+          >
+            {p}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function buildSummary(
+  activities: ItineraryActivity[],
+  dayIndex: number,
+): string[] {
+  if (activities.length === 0) return [];
+
+  const sorted = [...activities].sort((a, b) => a.order - b.order);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  const uniqueDestinations = Array.from(
+    new Set(
+      sorted
+        .map((a) => a.destinationName.trim())
+        .filter((d) => d.length > 0),
+    ),
+  );
+
+  const overnightCount = sorted.filter((a) =>
+    isOvernight(a.startTime, a.endTime),
+  ).length;
+
+  const paragraphs: string[] = [];
+
+  // Opening
+  const activityWord = sorted.length === 1 ? "activity" : "activities";
+  const startClause = `starting at ${first.startTime} with "${first.title}"`;
+  const endClause =
+    sorted.length > 1
+      ? `ending at ${last.endTime} with "${last.title}"`
+      : "";
+
+  let opener = `Day ${dayIndex + 1} has ${sorted.length} ${activityWord} — ${startClause}`;
+  if (endClause) opener += ` and ${endClause}`;
+  opener += ".";
+  paragraphs.push(opener);
+
+  // Destinations
+  if (uniqueDestinations.length > 0) {
+    if (uniqueDestinations.length === 1) {
+      paragraphs.push(`The day centers on ${uniqueDestinations[0]}.`);
+    } else if (uniqueDestinations.length === 2) {
+      paragraphs.push(
+        `You'll move between ${uniqueDestinations[0]} and ${uniqueDestinations[1]}.`,
+      );
+    } else {
+      const last_dest = uniqueDestinations.pop();
+      paragraphs.push(
+        `Stops include ${uniqueDestinations.join(", ")}, and ${last_dest}.`,
+      );
+    }
+  }
+
+  // Overnight hint
+  if (overnightCount > 0) {
+    paragraphs.push(
+      overnightCount === 1
+        ? "One activity crosses midnight — the journey continues into the next day."
+        : `${overnightCount} activities cross midnight — the journey continues into the next day.`,
+    );
+  }
+
+  // Notes compilation
+  const notes = sorted
+    .map((a) => a.notes.trim())
+    .filter((n) => n.length > 0);
+  if (notes.length > 0) {
+    paragraphs.push(notes.join("\n\n"));
+  }
+
+  return paragraphs;
+}
+
+// ---------------------------------------------------------------------------
+// Sortable wrapper
+// ---------------------------------------------------------------------------
 
 function SortableActivity({
   id,
@@ -570,6 +642,10 @@ function SortableActivity({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Compact view
+// ---------------------------------------------------------------------------
+
 function CompactView({
   days,
   tripStartDate,
@@ -603,67 +679,72 @@ function CompactView({
     <div className="space-y-6 print-compact">
       {days.map(({ dayIndex, activities }) => {
         if (activities.length === 0) return null;
-        const dayMins = totalPlannedMinutes(activities);
-        const dayCost = totalPlannedCost(activities);
         return (
-          <div
-            key={dayIndex}
-            className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden print-keep"
-          >
-            <div className="px-5 py-3 border-b border-purpleDark/60 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-serif text-lg text-textPrimary">
-                Day {dayIndex + 1}
-                {tripStartDate && (
-                  <span className="text-textSecondary text-sm font-normal ml-2">
-                    {dayDate(dayIndex)}
-                  </span>
-                )}
-              </h3>
-              <div className="text-[11px] text-textSecondary inline-flex items-center gap-3">
-                <span>{activities.length} activities</span>
-                <span className="text-peach">{formatDuration(dayMins)}</span>
-                <span className="text-gold">{formatBDT(dayCost)}</span>
+          <div key={dayIndex} className="space-y-4">
+            <div className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden print-keep">
+              <div className="px-5 py-3 border-b border-purpleDark/60 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-serif text-lg text-textPrimary">
+                  Day {dayIndex + 1}
+                  {tripStartDate && (
+                    <span className="text-textSecondary text-sm font-normal ml-2">
+                      {dayDate(dayIndex)}
+                    </span>
+                  )}
+                </h3>
+                <div className="text-[11px] text-textSecondary">
+                  {activities.length} activities
+                </div>
+              </div>
+
+              <div className="hidden md:grid grid-cols-12 gap-2 px-5 py-2 bg-midnight/30 text-[10px] uppercase tracking-wider text-textSecondary">
+                <div className="col-span-2">Time</div>
+                <div className="col-span-6">Activity</div>
+                <div className="col-span-3">Destination</div>
+                <div className="col-span-1 text-right">Status</div>
+              </div>
+
+              <div className="divide-y divide-purpleDark/30">
+                {activities.map((a) => {
+                  const ov = isOvernight(a.startTime, a.endTime);
+                  return (
+                    <div
+                      key={a.id}
+                      className="grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-3 items-center text-sm"
+                    >
+                      <div className="md:col-span-2 font-mono text-xs text-peach">
+                        {a.startTime} – {a.endTime}
+                        {ov && (
+                          <span className="ml-1 text-[9px] text-lavenderMist">
+                            +1d
+                          </span>
+                        )}
+                      </div>
+                      <div className="md:col-span-6 text-textPrimary">
+                        {a.title}
+                      </div>
+                      <div className="md:col-span-3 text-xs text-textSecondary truncate">
+                        {a.destinationName || "—"}
+                      </div>
+                      <div className="md:col-span-1 text-[10px] text-textSecondary md:text-right capitalize">
+                        {a.status}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="hidden md:grid grid-cols-12 gap-2 px-5 py-2 bg-midnight/30 text-[10px] uppercase tracking-wider text-textSecondary">
-              <div className="col-span-2">Time</div>
-              <div className="col-span-5">Activity</div>
-              <div className="col-span-2">Destination</div>
-              <div className="col-span-2 text-right">Cost</div>
-              <div className="col-span-1 text-right">Status</div>
-            </div>
-
-            <div className="divide-y divide-purpleDark/30">
-              {activities.map((a) => (
-                <div
-                  key={a.id}
-                  className="grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-3 items-center text-sm"
-                >
-                  <div className="md:col-span-2 font-mono text-xs text-peach">
-                    {a.startTime} – {a.endTime}
-                  </div>
-                  <div className="md:col-span-5 text-textPrimary">
-                    {a.title}
-                  </div>
-                  <div className="md:col-span-2 text-xs text-textSecondary truncate">
-                    {a.destinationName || "—"}
-                  </div>
-                  <div className="md:col-span-2 text-xs text-gold md:text-right">
-                    {a.estimatedCost > 0 ? formatBDT(a.estimatedCost) : "—"}
-                  </div>
-                  <div className="md:col-span-1 text-[10px] text-textSecondary md:text-right capitalize">
-                    {a.status}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DaySummary activities={activities} dayIndex={dayIndex} />
           </div>
         );
       })}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Text export
+// ---------------------------------------------------------------------------
 
 function buildItineraryText(
   tripName: string,
@@ -679,47 +760,30 @@ function buildItineraryText(
     lines.push(`DAY ${dayIndex + 1}`);
     lines.push("-".repeat(8));
     for (const a of activities) {
-      const time = `${a.startTime}–${a.endTime}`;
+      const ov = isOvernight(a.startTime, a.endTime);
+      const time = `${a.startTime}–${a.endTime}${ov ? " (+1d)" : ""}`;
       const dest = a.destinationName ? ` @ ${a.destinationName}` : "";
       lines.push(`  ${time}  ${a.title}${dest}`);
       if (a.notes) lines.push(`           ${a.notes}`);
+    }
+
+    // Written summary at the end of each day
+    const summary = buildSummary(activities, dayIndex);
+    if (summary.length > 0) {
+      lines.push("");
+      lines.push("Summary:");
+      for (const p of summary) {
+        lines.push("  " + p.replace(/\n/g, "\n  "));
+      }
     }
     lines.push("");
   }
   return lines.join("\n");
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: "coral";
-}) {
-  return (
-    <div className="rounded-xl border border-purpleDark/60 bg-indigoDeep/70 p-4 pv-card">
-      <p className="text-[11px] text-textSecondary mb-1">{label}</p>
-      <p
-        className={`text-lg font-semibold ${
-          accent === "coral" ? "text-coral" : "text-textPrimary"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function SideRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between py-1 border-b border-purpleDark/30 last:border-0">
-      <span className="text-textSecondary">{label}</span>
-      <span className="text-textPrimary">{value}</span>
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Activity card
+// ---------------------------------------------------------------------------
 
 function ActivityCard({
   activity,
@@ -728,6 +792,7 @@ function ActivityCard({
   canEdit,
   isDragging,
   dragHandleProps,
+  overnight,
   onEdit,
   onRemove,
 }: {
@@ -737,6 +802,7 @@ function ActivityCard({
   canEdit: boolean;
   isDragging: boolean;
   dragHandleProps: Record<string, unknown>;
+  overnight: boolean;
   onEdit: () => void;
   onRemove: () => void;
 }) {
@@ -772,6 +838,12 @@ function ActivityCard({
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-midnight/70 text-peach">
                 {activity.startTime} – {activity.endTime}
               </span>
+              {overnight && (
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border bg-purpleDark/60 text-lavenderMist border-purpleDark inline-flex items-center gap-1">
+                  <Moon className="w-3 h-3" />
+                  Overnight
+                </span>
+              )}
               <span className="text-[11px] text-textSecondary">
                 {formatDuration(dur)}
               </span>
@@ -783,7 +855,7 @@ function ActivityCard({
                 {activity.priority}
               </span>
             </div>
-            <h3 className="text-textPrimary font-medium truncate">
+            <h3 className="text-textPrimary font-medium">
               {activity.title}
             </h3>
             {activity.destinationName && (
@@ -820,12 +892,6 @@ function ActivityCard({
           <TransportIcon mode={activity.transportMode} />
           {TRANSPORT_LABELS[activity.transportMode]}
         </span>
-        {activity.estimatedCost > 0 && (
-          <span className="inline-flex items-center gap-1.5 text-gold">
-            <Coins className="w-3.5 h-3.5" />
-            {formatBDT(activity.estimatedCost)}
-          </span>
-        )}
         <span className="ml-auto text-[11px] capitalize">
           {activity.status}
         </span>
@@ -839,6 +905,10 @@ function ActivityCard({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Modal
+// ---------------------------------------------------------------------------
 
 interface Payload {
   title: string;
@@ -874,9 +944,6 @@ function ActivityModal({
   const [transportMode, setTransportMode] = useState<TransportMode>(
     initial?.transportMode ?? "other",
   );
-  const [estimatedCost, setEstimatedCost] = useState(
-    initial?.estimatedCost ?? 0,
-  );
   const [priority, setPriority] = useState<Payload["priority"]>(
     initial?.priority ?? "optional",
   );
@@ -893,21 +960,19 @@ function ActivityModal({
     setStartTime(initial?.startTime ?? "09:00");
     setEndTime(initial?.endTime ?? "10:00");
     setTransportMode(initial?.transportMode ?? "other");
-    setEstimatedCost(initial?.estimatedCost ?? 0);
     setPriority(initial?.priority ?? "optional");
     setStatus(initial?.status ?? "planned");
     setNotes(initial?.notes ?? "");
   }
 
-  const durationMins = timeToMinutes(endTime) - timeToMinutes(startTime);
-  const durationLabel =
-    durationMins > 0
-      ? formatDuration(durationMins)
-      : durationMins === 0
-        ? "0m"
-        : "ends before start";
+  const durationMins = durationMinutes(startTime, endTime);
+  const overnight = isOvernight(startTime, endTime);
+  const sameTime = startTime === endTime;
+  const durationLabel = sameTime
+    ? "same start and end"
+    : formatDuration(durationMins);
 
-  const canSave = title.trim().length > 0;
+  const canSave = title.trim().length > 0 && !sameTime;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -917,7 +982,8 @@ function ActivityModal({
       startTime,
       endTime,
       transportMode,
-      estimatedCost: Math.max(0, Math.round(estimatedCost)),
+      // Preserve existing cost if any; new activities default to 0.
+      estimatedCost: initial?.estimatedCost ?? 0,
       priority,
       status,
       notes,
@@ -962,9 +1028,21 @@ function ActivityModal({
             onChange={(e) => setEndTime(e.target.value)}
           />
         </div>
-        <p className="text-[11px] text-textSecondary -mt-2">
-          Duration: <span className="text-peach">{durationLabel}</span>
-        </p>
+
+        <div className="rounded-lg border border-purpleDark/60 bg-midnight/40 px-3 py-2 text-[11px] text-textSecondary">
+          Duration:{" "}
+          <span className="text-peach font-medium">{durationLabel}</span>
+          {overnight && (
+            <span className="ml-2 text-lavenderMist">
+              · crosses midnight (next day)
+            </span>
+          )}
+          {sameTime && (
+            <span className="ml-2 text-coral">
+              · end time must differ from start time
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Select
@@ -978,37 +1056,30 @@ function ActivityModal({
               </option>
             ))}
           </Select>
-          <TextInput
-            label="Estimated cost (৳)"
-            type="number"
-            min={0}
-            value={estimatedCost}
-            onChange={(e) => setEstimatedCost(Number(e.target.value) || 0)}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
           <Select
             label="Priority"
             value={priority}
-            onChange={(e) => setPriority(e.target.value as Payload["priority"])}
+            onChange={(e) =>
+              setPriority(e.target.value as Payload["priority"])
+            }
           >
             <option value="must">Must visit</option>
             <option value="high">High</option>
             <option value="optional">Optional</option>
             <option value="backup">Backup</option>
           </Select>
-          <Select
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as Payload["status"])}
-          >
-            <option value="planned">Planned</option>
-            <option value="in-progress">In progress</option>
-            <option value="completed">Completed</option>
-            <option value="skipped">Skipped</option>
-          </Select>
         </div>
+
+        <Select
+          label="Status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as Payload["status"])}
+        >
+          <option value="planned">Planned</option>
+          <option value="in-progress">In progress</option>
+          <option value="completed">Completed</option>
+          <option value="skipped">Skipped</option>
+        </Select>
 
         <TextArea
           label="Notes"
@@ -1031,4 +1102,4 @@ function ActivityModal({
       </div>
     </Modal>
   );
-}
+          }
