@@ -14,11 +14,10 @@ import {
 } from "lucide-react";
 import { doc, updateDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
-import { useAuth } from "../lib/auth";
 import { useStore } from "../lib/store";
 import { useToast } from "./Toast";
 import { useConfirm } from "./ConfirmProvider";
-import { createInvite, deleteInvite, subscribeInvites } from "../lib/invites";
+import { deleteInvite, subscribeInvites } from "../lib/invites";
 import { subscribeUsers, type DirectoryUser } from "../lib/userDirectory";
 import { getUnlinkedUsers, normalizeName } from "../lib/linking";
 import type { Invite, UserRole } from "../lib/types";
@@ -29,7 +28,6 @@ import Modal from "./Modal";
 type Tab = "invites" | "users";
 
 export default function AdminAccounts() {
-  const { user } = useAuth();
   const { data } = useStore();
   const toast = useToast();
   const confirm = useConfirm();
@@ -65,24 +63,6 @@ export default function AdminAccounts() {
     return m;
   }, [data.participants]);
 
-  const handleCreateInvite = async (params: {
-    displayName: string;
-    email: string | null;
-    role: UserRole;
-  }) => {
-    try {
-      const invite = await createInvite({
-        ...params,
-        createdBy: user?.id ?? "",
-      });
-      setCreating(false);
-      setJustCreated(invite);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create invite.");
-    }
-  };
-
   const handleUnlinkUser = async (u: DirectoryUser) => {
     const ok = await confirm({
       title: `Unlink ${u.displayName}?`,
@@ -106,7 +86,6 @@ export default function AdminAccounts() {
   };
 
   const handleLinkUserToMatch = async (u: DirectoryUser) => {
-    // Find a participant with a matching name
     const match = data.participants.find(
       (p) => normalizeName(p.name) === normalizeName(u.displayName),
     );
@@ -136,7 +115,6 @@ export default function AdminAccounts() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Tab switcher */}
       <div className="flex items-center gap-1 p-1 rounded-xl bg-midnight/60 border border-purpleDark/60">
         <button
           onClick={() => setTab("invites")}
@@ -168,92 +146,88 @@ export default function AdminAccounts() {
       </div>
 
       {tab === "invites" && (
-        <>
-          <section className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-6">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <h2 className="font-serif text-lg text-textPrimary mb-1 flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-peach" />
-                  Invite participants
-                </h2>
-                <p className="text-xs text-textSecondary max-w-md">
-                  Generate an invite code, send it to the person. They choose
-                  their own password — you never need to see it.
-                </p>
-              </div>
-              <Button onClick={() => setCreating(true)}>
-                <Plus className="w-4 h-4" /> New invite
-              </Button>
-            </div>
-
-            {error && (
-              <div className="mb-4 rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-xs text-coral">
-                {error}
-              </div>
-            )}
-
-            {active.length === 0 && used.length === 0 && (
-              <p className="text-sm text-textSecondary">
-                No invites yet. Click "New invite" to add your first
-                participant.
+        <section className="rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-6">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h2 className="font-serif text-lg text-textPrimary mb-1 flex items-center gap-2">
+                <Ticket className="w-4 h-4 text-peach" />
+                Invite participants
+              </h2>
+              <p className="text-xs text-textSecondary max-w-md">
+                Generate an invite code, send it to the person. They choose
+                their own password — you never need to see it.
               </p>
-            )}
+            </div>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="w-4 h-4" /> New invite
+            </Button>
+          </div>
 
-            {active.length > 0 && (
-              <div className="space-y-2 mb-5">
-                <p className="text-[11px] uppercase tracking-wider text-textSecondary mb-2">
-                  Active invites ({active.length})
-                </p>
-                {active.map((i) => (
-                  <InviteRow
-                    key={i.code}
-                    invite={i}
-                    onDelete={async () => {
-                      const ok = await confirm({
-                        title: `Delete invite ${i.code}?`,
-                        message:
-                          "This code will no longer be usable to sign up.",
-                        confirmText: "Delete",
-                        danger: true,
-                      });
-                      if (ok) {
-                        await deleteInvite(i.code);
-                        toast.success("Invite deleted", "Removed");
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+          {error && (
+            <div className="mb-4 rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-xs text-coral">
+              {error}
+            </div>
+          )}
 
-            {used.length > 0 && (
-              <div className="space-y-2 pt-4 border-t border-purpleDark/40">
-                <p className="text-[11px] uppercase tracking-wider text-textSecondary mb-2">
-                  Used invites ({used.length})
-                </p>
-                {used.map((i) => (
-                  <InviteRow
-                    key={i.code}
-                    invite={i}
-                    onDelete={async () => {
-                      const ok = await confirm({
-                        title: `Delete used invite ${i.code}?`,
-                        message:
-                          "The account remains active — only the invite record is removed.",
-                        confirmText: "Delete",
-                        danger: true,
-                      });
-                      if (ok) {
-                        await deleteInvite(i.code);
-                        toast.success("Invite deleted", "Removed");
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </>
+          {active.length === 0 && used.length === 0 && (
+            <p className="text-sm text-textSecondary">
+              No invites yet. Click "New invite" to add your first participant.
+            </p>
+          )}
+
+          {active.length > 0 && (
+            <div className="space-y-2 mb-5">
+              <p className="text-[11px] uppercase tracking-wider text-textSecondary mb-2">
+                Active invites ({active.length})
+              </p>
+              {active.map((i) => (
+                <InviteRow
+                  key={i.code}
+                  invite={i}
+                  onDelete={async () => {
+                    const ok = await confirm({
+                      title: `Delete invite ${i.code}?`,
+                      message: "This code will no longer be usable to sign up.",
+                      confirmText: "Delete",
+                      danger: true,
+                    });
+                    if (ok) {
+                      await deleteInvite(i.code);
+                      toast.success("Invite deleted", "Removed");
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {used.length > 0 && (
+            <div className="space-y-2 pt-4 border-t border-purpleDark/40">
+              <p className="text-[11px] uppercase tracking-wider text-textSecondary mb-2">
+                Used invites ({used.length})
+              </p>
+              {used.map((i) => (
+                <InviteRow
+                  key={i.code}
+                  invite={i}
+                  onDelete={async () => {
+                    const ok = await confirm({
+                      title: `Delete used invite ${i.code}?`,
+                      message:
+                        "The account remains active — only the invite record is removed.",
+                      confirmText: "Delete",
+                      danger: true,
+                    });
+                    if (ok) {
+                      await deleteInvite(i.code);
+                      toast.success("Invite deleted", "Removed");
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {tab === "users" && (
@@ -473,7 +447,6 @@ function InviteModal({
   onCreated: (invite: Invite) => void;
   onError: (msg: string) => void;
 }) {
-  const { user } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [lockEmail, setLockEmail] = useState(false);
@@ -497,11 +470,12 @@ function InviteModal({
     if (!canSave) return;
     setBusy(true);
     try {
+      const { createInvite } = await import("../lib/invites");
       const invite = await createInvite({
         displayName: name,
         email: lockEmail ? email : null,
         role,
-        createdBy: user?.id ?? "",
+        createdBy: "admin",
       });
       onCreated(invite);
     } catch (err) {

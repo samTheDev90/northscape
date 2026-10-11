@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Link2, Unlink, Loader2, Search } from "lucide-react";
 import { doc, updateDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
-import { useStore } from "../lib/store";
 import { useToast } from "./Toast";
 import Modal from "./Modal";
 import Button from "./PrimaryButton";
@@ -23,12 +22,10 @@ export default function LinkUserModal({
   participant,
   users,
 }: Props) {
-  const { data } = useStore();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
 
-  // Reset search when opening
   useEffect(() => {
     if (open) setQuery("");
   }, [open]);
@@ -39,11 +36,10 @@ export default function LinkUserModal({
     (u) => u.participantId === participant.id,
   );
 
-  // Filter eligible users: participants only, not already linked elsewhere
   const availableUsers = users.filter((u) => {
     if (u.role === "admin") return false;
-    if (u.participantId === participant.id) return false; // that's the current one
-    if (u.participantId) return false; // linked to someone else
+    if (u.participantId === participant.id) return false;
+    if (u.participantId) return false;
     if (!query.trim()) return true;
     const q = query.trim().toLowerCase();
     return (
@@ -100,7 +96,6 @@ export default function LinkUserModal({
       width="md"
     >
       <div className="space-y-4">
-        {/* Currently linked user (if any) */}
         {currentLinkedUser && (
           <div className="rounded-xl border border-forest/40 bg-forest/5 p-4">
             <p className="text-[11px] text-forest uppercase tracking-wider mb-2 inline-flex items-center gap-1.5">
@@ -145,7 +140,6 @@ export default function LinkUserModal({
           </div>
         )}
 
-        {/* Search */}
         <div className="relative">
           <Search className="w-4 h-4 text-textSecondary absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -157,7 +151,6 @@ export default function LinkUserModal({
           />
         </div>
 
-        {/* List */}
         <div className="max-h-72 overflow-y-auto rounded-xl border border-purpleDark/60 bg-midnight/30 divide-y divide-purpleDark/40">
           {availableUsers.length === 0 ? (
             <div className="p-6 text-center text-xs text-textSecondary">

@@ -15,7 +15,6 @@ import {
   Eye,
   Link2,
   Link2Off,
-  Shield,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
@@ -215,8 +214,6 @@ export default function ParticipantsPage() {
             const contrib = contributionsMap[p.id] ?? { planned: 0, actual: 0 };
             const bal = balanceMap[p.id];
             const linkedUser = userByParticipant[p.id];
-            const isMe = linkedUser?.uid === undefined ? false : false;
-            void isMe;
             return (
               <div
                 key={p.id}
@@ -279,7 +276,6 @@ export default function ParticipantsPage() {
                   </AdminOnly>
                 </div>
 
-                {/* Link status */}
                 <div className="mb-4">
                   {linkedUser ? (
                     <div className="rounded-xl border border-forest/30 bg-forest/5 px-3 py-2">
