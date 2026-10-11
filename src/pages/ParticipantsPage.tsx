@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Plus,
@@ -13,6 +13,9 @@ import {
   XCircle,
   UserCircle2,
   Eye,
+  Link2,
+  Link2Off,
+  Shield,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
@@ -24,9 +27,11 @@ import Modal from "../components/Modal";
 import Button from "../components/PrimaryButton";
 import AdminOnly from "../components/AdminOnly";
 import ImageUpload from "../components/ImageUpload";
+import LinkUserModal from "../components/LinkUserModal";
 import { Select, TextArea, TextInput } from "../components/FormField";
 import EmptyState from "../components/EmptyState";
 import { Skeleton, SkeletonGrid, SkeletonStats } from "../components/Skeleton";
+import { subscribeUsers, type DirectoryUser } from "../lib/userDirectory";
 import type { Participant, ParticipantStatus } from "../lib/types";
 
 const STATUS_META: Record<
@@ -53,7 +58,7 @@ const STATUS_META: Record<
 export default function ParticipantsPage() {
   const { data, ready, addParticipant, updateParticipant, removeParticipant } =
     useStore();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAuthenticated } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const [creating, setCreating] = useState(false);
@@ -61,6 +66,25 @@ export default function ParticipantsPage() {
   const [contributingFor, setContributingFor] = useState<Participant | null>(
     null,
   );
+  const [linkingFor, setLinkingFor] = useState<Participant | null>(null);
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUsers([]);
+      return;
+    }
+    const unsub = subscribeUsers(setUsers);
+    return () => unsub();
+  }, [isAuthenticated]);
+
+  const userByParticipant = useMemo(() => {
+    const map: Record<string, DirectoryUser> = {};
+    for (const u of users) {
+      if (u.participantId) map[u.participantId] = u;
+    }
+    return map;
+  }, [users]);
 
   const balances = useMemo(
     () =>
@@ -99,10 +123,13 @@ export default function ParticipantsPage() {
   }, [contributionsMap]);
 
   const handleRemove = async (p: Participant) => {
+    const linkedUser = userByParticipant[p.id];
+    const message = linkedUser
+      ? `${linkedUser.displayName}'s account will be unlinked from this participant record. Their contribution records will also be removed.`
+      : "Their contribution record will also be removed. Financial history for shared expenses is preserved for the remaining participants.";
     const ok = await confirm({
       title: `Remove ${p.name}?`,
-      message:
-        "Their contribution record will also be removed. Financial history for shared expenses is preserved for the remaining participants.",
+      message,
       confirmText: "Remove",
       danger: true,
     });
@@ -151,10 +178,9 @@ export default function ParticipantsPage() {
           )}
         />
         <Stat
-          label="Tentative"
-          value={String(
-            data.participants.filter((p) => p.status === "tentative").length,
-          )}
+          label="Linked accounts"
+          value={String(Object.keys(userByParticipant).length)}
+          accent="peach"
         />
         <Stat label="Contributions planned" value={formatBDT(totals.planned)} />
         <Stat
@@ -188,6 +214,9 @@ export default function ParticipantsPage() {
             const Icon = meta.icon;
             const contrib = contributionsMap[p.id] ?? { planned: 0, actual: 0 };
             const bal = balanceMap[p.id];
+            const linkedUser = userByParticipant[p.id];
+            const isMe = linkedUser?.uid === undefined ? false : false;
+            void isMe;
             return (
               <div
                 key={p.id}
@@ -200,9 +229,9 @@ export default function ParticipantsPage() {
                     className="flex items-center gap-3 min-w-0 flex-1 group"
                   >
                     <div className="w-12 h-12 rounded-full bg-purpleDark/70 flex items-center justify-center overflow-hidden shrink-0 border-2 border-peach/20 group-hover:border-peach/60 transition-colors">
-                      {p.photoUrl ? (
+                      {p.photoUrl || linkedUser?.photoUrl ? (
                         <img
-                          src={p.photoUrl}
+                          src={p.photoUrl || linkedUser?.photoUrl}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -248,6 +277,48 @@ export default function ParticipantsPage() {
                       </button>
                     </div>
                   </AdminOnly>
+                </div>
+
+                {/* Link status */}
+                <div className="mb-4">
+                  {linkedUser ? (
+                    <div className="rounded-xl border border-forest/30 bg-forest/5 px-3 py-2">
+                      <p className="text-[10px] text-forest uppercase tracking-wider mb-1 inline-flex items-center gap-1">
+                        <Link2 className="w-3 h-3" /> Linked account
+                      </p>
+                      <p className="text-xs text-textPrimary truncate">
+                        {linkedUser.displayName}
+                      </p>
+                      <p className="text-[10px] text-textSecondary truncate">
+                        {linkedUser.email}
+                      </p>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setLinkingFor(p)}
+                          className="mt-2 text-[11px] text-peach hover:text-coral"
+                        >
+                          Change link
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-purpleDark/60 bg-midnight/40 px-3 py-2">
+                      <p className="text-[10px] text-textSecondary uppercase tracking-wider inline-flex items-center gap-1">
+                        <Link2Off className="w-3 h-3" /> Not linked
+                      </p>
+                      <p className="text-[10px] text-lavenderMist mt-0.5">
+                        No signed-up account is attached to this person yet.
+                      </p>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setLinkingFor(p)}
+                          className="mt-2 text-[11px] text-peach hover:text-coral"
+                        >
+                          Link an account
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 text-xs mb-4">
@@ -355,6 +426,12 @@ export default function ParticipantsPage() {
             open={contributingFor !== null}
             onClose={() => setContributingFor(null)}
             participant={contributingFor}
+          />
+          <LinkUserModal
+            open={linkingFor !== null}
+            onClose={() => setLinkingFor(null)}
+            participant={linkingFor}
+            users={users}
           />
         </>
       </AdminOnly>
@@ -519,6 +596,11 @@ function ParticipantModal({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
+
+        <p className="text-[11px] text-lavenderMist">
+          Tip: after saving, use "Link an account" on the participant card to
+          connect this person to a signed-up user.
+        </p>
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <button
