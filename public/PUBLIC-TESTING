@@ -1,0 +1,63 @@
+====================================================================
+PANCHAGARH VOYAGE — TESTING REPORT
+====================================================================
+
+This report describes the tests that were actually performed during
+development. Every test listed below was run in the browser's console
+or manually through the running application.
+
+## FINANCE CALCULATION ENGINE (automated, console-verified)
+
+T1 Equal split of ৳900 among 3 participants ......................... PASS
+T2 Rounding: ৳100 / 3 = [34, 33, 33], sum = ৳100 ................. PASS
+T3 Adding a 4th participant recomputes shares correctly ............ PASS
+T4 Partial contribution: planned ৳1000, actual ৳400, outstanding ৳600 PASS
+T5 Cash balance vs settlement: ৳900 in, ৳900 out, cash = ৳0 ........ PASS
+T6 Participant-paid shared expense reconciles to zero .............. PASS
+T7 Zero participants: no NaN, no divide-by-zero, warning shown ..... PASS
+T8 Emergency reserve does not count as spent money ................. PASS
+T9 Planned vs actual expense: no double-counting ................... PASS
+
+Additional tests run during development:
+
+T10 Overnight train (22:00 → 07:00 next day = 9h) ................... PASS
+T11 Itinerary conflict detection (overlapping activities) ........... PASS
+T12 Persistence across page refresh ................................. PASS
+T13 Backup export and restore ....................................... PASS
+T14 Invalid backup rejected without data loss ....................... PASS
+T15 Category reordering and deactivation ............................ PASS
+T16 Participant removal preserves financial history for others ...... PASS
+T17 Mobile layout at 360px viewport — no horizontal overflow ........ PASS
+T18 Desktop layout at 1440px viewport ............................... PASS
+T19 Production build completes with no errors ....................... PASS
+T20 Opening dist/index.html directly in Chrome ...................... PASS
+
+## MANUAL UI CHECKS
+
+- Landing page renders hero, featured spots, and quick links
+- Itinerary timeline shows activities with conflict warnings
+- Budget donut charts update when expenses change
+- Settlement tab reflects actual expenses only
+- Participant cards show planned/paid/outstanding values
+- Destination card grid filters and sorts correctly
+- Transport modal handles overnight crossings with date awareness
+- Food planner calculates line totals
+- Documents upload/download works in Chrome and Edge
+- Admin trip settings affect the landing page countdown
+- Category deactivation hides it from the expense dropdown
+- All navigation links reach their intended pages
+
+## KNOWN UNTESTED ITEMS
+
+- Safari desktop and iOS: not tested. IndexedDB behavior may
+  differ; use the START.sh launcher.
+- Very large attachments (>5 MB): expected to work but not
+  stress-tested.
+- Excel/CSV import of a real Bangladesh Railway schedule:
+  column mapping is manual, not automated.
+- Live weather integration: not implemented (documented as a
+  limitation, not a bug).
+
+====================================================================
+Test environment: Windows 11, Node.js, Chrome 130+, Edge 130+
+====================================================================
