@@ -13,8 +13,6 @@ import {
   XCircle,
   UserCircle2,
   Eye,
-  Link2,
-  Link2Off,
 } from "lucide-react";
 import { doc, deleteDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
@@ -70,22 +68,24 @@ export default function ParticipantsPage() {
   const [linkingFor, setLinkingFor] = useState<Participant | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
 
+  // Only admins need to know about user accounts.
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isAdmin) {
       setUsers([]);
       return;
     }
     const unsub = subscribeUsers(setUsers);
     return () => unsub();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAdmin]);
 
   const userByParticipant = useMemo(() => {
+    if (!isAdmin) return {};
     const map: Record<string, DirectoryUser> = {};
     for (const u of users) {
       if (u.participantId) map[u.participantId] = u;
     }
     return map;
-  }, [users]);
+  }, [users, isAdmin]);
 
   const balances = useMemo(
     () =>
@@ -136,7 +136,6 @@ export default function ParticipantsPage() {
     });
     if (!ok) return;
 
-    // If there's a linked user, revoke their access first.
     if (linkedUser) {
       try {
         await deleteDoc(doc(firestore, USERS_COLLECTION, linkedUser.uid));
@@ -195,11 +194,20 @@ export default function ParticipantsPage() {
             data.participants.filter((p) => p.status === "confirmed").length,
           )}
         />
-        <Stat
-          label="Linked accounts"
-          value={String(Object.keys(userByParticipant).length)}
-          accent="peach"
-        />
+        {isAdmin ? (
+          <Stat
+            label="Linked accounts"
+            value={String(Object.keys(userByParticipant).length)}
+            accent="peach"
+          />
+        ) : (
+          <Stat
+            label="Tentative"
+            value={String(
+              data.participants.filter((p) => p.status === "tentative").length,
+            )}
+          />
+        )}
         <Stat label="Contributions planned" value={formatBDT(totals.planned)} />
         <Stat
           label="Contributions received"
@@ -295,46 +303,45 @@ export default function ParticipantsPage() {
                   </AdminOnly>
                 </div>
 
-                <div className="mb-4">
-                  {linkedUser ? (
-                    <div className="rounded-xl border border-forest/30 bg-forest/5 px-3 py-2">
-                      <p className="text-[10px] text-forest uppercase tracking-wider mb-1 inline-flex items-center gap-1">
-                        <Link2 className="w-3 h-3" /> Linked account
-                      </p>
-                      <p className="text-xs text-textPrimary truncate">
-                        {linkedUser.displayName}
-                      </p>
-                      <p className="text-[10px] text-textSecondary truncate">
-                        {linkedUser.email}
-                      </p>
-                      {isAdmin && (
+                {/* Link status — admins only */}
+                {isAdmin && (
+                  <div className="mb-4">
+                    {linkedUser ? (
+                      <div className="rounded-xl border border-forest/30 bg-forest/5 px-3 py-2">
+                        <p className="text-[10px] text-forest uppercase tracking-wider mb-1">
+                          Linked account
+                        </p>
+                        <p className="text-xs text-textPrimary truncate">
+                          {linkedUser.displayName}
+                        </p>
+                        <p className="text-[10px] text-textSecondary truncate">
+                          {linkedUser.email}
+                        </p>
                         <button
                           onClick={() => setLinkingFor(p)}
                           className="mt-2 text-[11px] text-peach hover:text-coral"
                         >
                           Change link
                         </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-purpleDark/60 bg-midnight/40 px-3 py-2">
-                      <p className="text-[10px] text-textSecondary uppercase tracking-wider inline-flex items-center gap-1">
-                        <Link2Off className="w-3 h-3" /> Not linked
-                      </p>
-                      <p className="text-[10px] text-lavenderMist mt-0.5">
-                        No signed-up account yet.
-                      </p>
-                      {isAdmin && (
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-purpleDark/60 bg-midnight/40 px-3 py-2">
+                        <p className="text-[10px] text-textSecondary uppercase tracking-wider">
+                          Not linked
+                        </p>
+                        <p className="text-[10px] text-lavenderMist mt-0.5">
+                          No signed-up account yet.
+                        </p>
                         <button
                           onClick={() => setLinkingFor(p)}
                           className="mt-2 text-[11px] text-peach hover:text-coral"
                         >
                           Link an account
                         </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2 text-xs mb-4">
                   <Row
