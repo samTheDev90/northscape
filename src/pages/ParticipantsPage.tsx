@@ -70,23 +70,25 @@ export default function ParticipantsPage() {
   const [emailingFor, setEmailingFor] = useState<Participant | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
 
+  // Subscribe to users for any signed-in viewer — used to show the
+  // linked account's photo on participant cards. Firestore rules
+  // require auth for reading /users.
   useEffect(() => {
-    if (!isAuthenticated || !isAdmin) {
+    if (!isAuthenticated) {
       setUsers([]);
       return;
     }
     const unsub = subscribeUsers(setUsers);
     return () => unsub();
-  }, [isAuthenticated, isAdmin]);
+  }, [isAuthenticated]);
 
   const userByParticipant = useMemo(() => {
-    if (!isAdmin) return {};
     const map: Record<string, DirectoryUser> = {};
     for (const u of users) {
       if (u.participantId) map[u.participantId] = u;
     }
     return map;
-  }, [users, isAdmin]);
+  }, [users]);
 
   const balances = useMemo(
     () =>
@@ -242,6 +244,7 @@ export default function ParticipantsPage() {
             const contrib = contributionsMap[p.id] ?? { planned: 0, actual: 0 };
             const bal = balanceMap[p.id];
             const linkedUser = userByParticipant[p.id];
+            const photoUrl = p.photoUrl || linkedUser?.photoUrl || "";
             return (
               <div
                 key={p.id}
@@ -254,9 +257,9 @@ export default function ParticipantsPage() {
                     className="flex items-center gap-3 min-w-0 flex-1 group"
                   >
                     <div className="w-12 h-12 rounded-full bg-purpleDark/70 flex items-center justify-center overflow-hidden shrink-0 border-2 border-peach/20 group-hover:border-peach/60 transition-colors">
-                      {p.photoUrl || linkedUser?.photoUrl ? (
+                      {photoUrl ? (
                         <img
-                          src={p.photoUrl || linkedUser?.photoUrl}
+                          src={photoUrl}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -312,7 +315,8 @@ export default function ParticipantsPage() {
                   </AdminOnly>
                 </div>
 
-                {isAdmin && (
+                {/* Linked account info — admins only */}
+                <AdminOnly>
                   <div className="mb-4">
                     {linkedUser ? (
                       <div className="rounded-xl border border-forest/30 bg-forest/5 px-3 py-2">
@@ -349,7 +353,7 @@ export default function ParticipantsPage() {
                       </div>
                     )}
                   </div>
-                )}
+                </AdminOnly>
 
                 <div className="space-y-2 text-xs mb-4">
                   <Row
@@ -387,8 +391,8 @@ export default function ParticipantsPage() {
                         bal.state === "owes"
                           ? "coral"
                           : bal.state === "receives"
-                            ? "forest"
-                            : undefined
+                          ? "forest"
+                          : undefined
                       }
                     />
                   </div>
@@ -517,8 +521,8 @@ function Row({
           accent === "coral"
             ? "text-coral"
             : accent === "forest"
-              ? "text-forest"
-              : "text-textPrimary"
+            ? "text-forest"
+            : "text-textPrimary"
         }`}
       >
         {value}
@@ -705,7 +709,10 @@ function ContributionModal({
       date,
       notes,
     });
-    toast.success(`Contribution saved for ${participant.name}`, "Recorded");
+    toast.success(
+      `Contribution saved for ${participant.name}`,
+      "Recorded",
+    );
     onClose();
   };
 
@@ -768,4 +775,4 @@ function ContributionModal({
       </div>
     </Modal>
   );
-}
+      }
