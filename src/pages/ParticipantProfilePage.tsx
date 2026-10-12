@@ -54,7 +54,6 @@ export default function ParticipantProfilePage() {
   const navigate = useNavigate();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
 
-  // Only signed-in viewers can read the users directory (Firestore rule).
   useEffect(() => {
     if (!isAuthenticated) {
       setUsers([]);
@@ -103,11 +102,13 @@ export default function ParticipantProfilePage() {
   const meta = STATUS_META[p.status] ?? STATUS_META.confirmed;
   const StatusIcon = meta.icon;
 
-  // Fallbacks: participant's own fields first, then the linked user's.
-  const photoUrl = p.photoUrl || linkedUser?.photoUrl || "";
-  const nickname = p.nickname || linkedUser?.nickname || "";
-  const contact = p.contact || linkedUser?.contact || "";
-  const notes = p.notes || linkedUser?.notes || "";
+  // Personal fields: when a signed-in account is linked, the user's
+  // self-managed fields take priority. Otherwise fall back to whatever
+  // the admin set on the participant record.
+  const photoUrl = linkedUser?.photoUrl || p.photoUrl || "";
+  const nickname = linkedUser?.nickname || p.nickname || "";
+  const contact = linkedUser?.contact || p.contact || "";
+  const notes = linkedUser?.notes || p.notes || "";
 
   const initial = p.name.slice(0, 1).toUpperCase();
 
@@ -473,4 +474,4 @@ function BadgeCard({
       </p>
     </div>
   );
-                }
+}
