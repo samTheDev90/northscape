@@ -11,6 +11,7 @@ import {
   Link2,
   Link2Off,
   Shield,
+  Mail,
 } from "lucide-react";
 import { doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
@@ -25,6 +26,7 @@ import type { Invite, UserRole } from "../lib/types";
 import Button from "./PrimaryButton";
 import { Select, TextInput } from "./FormField";
 import Modal from "./Modal";
+import EmailComposerModal from "./EmailComposerModal";
 
 type Tab = "invites" | "users";
 
@@ -40,6 +42,7 @@ export default function AdminAccounts() {
   const [creating, setCreating] = useState(false);
   const [justCreated, setJustCreated] = useState<Invite | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   useEffect(() => {
     const unsub1 = subscribeInvites(setInvites);
@@ -120,7 +123,6 @@ export default function AdminAccounts() {
     email: string | null;
     role: UserRole;
   }) => {
-    // Find or create a participant record for this invite.
     let participantId: string | null = null;
 
     if (params.role === "participant") {
@@ -158,7 +160,7 @@ export default function AdminAccounts() {
     const ok = await confirm({
       title: `Delete ${u.displayName}'s account?`,
       message:
-        "Their Firestore profile will be removed and they will no longer be able to sign in. The Firebase Authentication record stays but access is revoked.",
+        "Their profile will be removed and they will no longer be able to sign in. If they ever try to sign up again with the same email, the app will automatically clean up the leftover auth record — so the email can be reused with a new invite.",
       confirmText: "Delete account",
       danger: true,
     });
@@ -176,34 +178,39 @@ export default function AdminAccounts() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center gap-1 p-1 rounded-xl bg-midnight/60 border border-purpleDark/60">
-        <button
-          onClick={() => setTab("invites")}
-          className={`flex-1 py-2 rounded-lg text-sm transition-colors inline-flex items-center justify-center gap-2 ${
-            tab === "invites"
-              ? "bg-peach text-midnight font-medium"
-              : "text-textSecondary hover:text-textPrimary"
-          }`}
-        >
-          <Ticket className="w-4 h-4" />
-          Invites
-        </button>
-        <button
-          onClick={() => setTab("users")}
-          className={`flex-1 py-2 rounded-lg text-sm transition-colors inline-flex items-center justify-center gap-2 ${
-            tab === "users"
-              ? "bg-peach text-midnight font-medium"
-              : "text-textSecondary hover:text-textPrimary"
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          Accounts ({users.length})
-          {unlinkedUsers.length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral/20 text-coral border border-coral/40">
-              {unlinkedUsers.length}
-            </span>
-          )}
-        </button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-midnight/60 border border-purpleDark/60 flex-1">
+          <button
+            onClick={() => setTab("invites")}
+            className={`flex-1 py-2 rounded-lg text-sm transition-colors inline-flex items-center justify-center gap-2 ${
+              tab === "invites"
+                ? "bg-peach text-midnight font-medium"
+                : "text-textSecondary hover:text-textPrimary"
+            }`}
+          >
+            <Ticket className="w-4 h-4" />
+            Invites
+          </button>
+          <button
+            onClick={() => setTab("users")}
+            className={`flex-1 py-2 rounded-lg text-sm transition-colors inline-flex items-center justify-center gap-2 ${
+              tab === "users"
+                ? "bg-peach text-midnight font-medium"
+                : "text-textSecondary hover:text-textPrimary"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Accounts ({users.length})
+            {unlinkedUsers.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral/20 text-coral border border-coral/40">
+                {unlinkedUsers.length}
+              </span>
+            )}
+          </button>
+        </div>
+        <Button onClick={() => setEmailOpen(true)}>
+          <Mail className="w-4 h-4" /> Send email
+        </Button>
       </div>
 
       {tab === "invites" && (
@@ -432,6 +439,14 @@ export default function AdminAccounts() {
       <ShowCodeModal
         invite={justCreated}
         onClose={() => setJustCreated(null)}
+      />
+
+      <EmailComposerModal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        participants={data.participants}
+        users={users}
+        tripName={data.trip.name}
       />
     </div>
   );

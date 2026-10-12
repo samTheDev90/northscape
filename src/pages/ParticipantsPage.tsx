@@ -27,6 +27,7 @@ import Button from "../components/PrimaryButton";
 import AdminOnly from "../components/AdminOnly";
 import ImageUpload from "../components/ImageUpload";
 import LinkUserModal from "../components/LinkUserModal";
+import EmailComposerModal from "../components/EmailComposerModal";
 import { Select, TextArea, TextInput } from "../components/FormField";
 import EmptyState from "../components/EmptyState";
 import { Skeleton, SkeletonGrid, SkeletonStats } from "../components/Skeleton";
@@ -66,9 +67,9 @@ export default function ParticipantsPage() {
     null,
   );
   const [linkingFor, setLinkingFor] = useState<Participant | null>(null);
+  const [emailingFor, setEmailingFor] = useState<Participant | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
 
-  // Only admins need to know about user accounts.
   useEffect(() => {
     if (!isAuthenticated || !isAdmin) {
       setUsers([]);
@@ -286,6 +287,14 @@ export default function ParticipantsPage() {
                   <AdminOnly>
                     <div className="flex gap-1">
                       <button
+                        onClick={() => setEmailingFor(p)}
+                        className="p-1.5 rounded hover:bg-purpleDark/60 text-textSecondary"
+                        aria-label="Send email"
+                        title="Send email"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => setEditing(p)}
                         className="p-1.5 rounded hover:bg-purpleDark/60 text-textSecondary"
                         aria-label="Edit"
@@ -303,7 +312,6 @@ export default function ParticipantsPage() {
                   </AdminOnly>
                 </div>
 
-                {/* Link status — admins only */}
                 {isAdmin && (
                   <div className="mb-4">
                     {linkedUser ? (
@@ -454,6 +462,14 @@ export default function ParticipantsPage() {
             onClose={() => setLinkingFor(null)}
             participant={linkingFor}
             users={users}
+          />
+          <EmailComposerModal
+            open={emailingFor !== null}
+            onClose={() => setEmailingFor(null)}
+            participants={data.participants}
+            users={users}
+            tripName={data.trip.name}
+            initialParticipantId={emailingFor?.id ?? null}
           />
         </>
       </AdminOnly>
@@ -611,6 +627,7 @@ function ParticipantModal({
           value={contact}
           onChange={(e) => setContact(e.target.value)}
           placeholder="Phone or email"
+          hint="If this is an email address, it can be used when sending emails."
         />
 
         <TextArea

@@ -123,9 +123,19 @@ async function loadUserProfile(
     if (profile) return profile;
     await new Promise((r) => setTimeout(r, delayMs));
   }
-  await fbSignOut(auth);
+
+  // Cleanup path: no Firestore profile found. This means the account
+  // was removed by an admin but the underlying Auth record survived.
+  // Delete the orphan so the email can be reused, then sign out.
+  try {
+    await fbUser.delete();
+  } catch (err) {
+    console.warn("Could not delete orphan auth account:", err);
+    await fbSignOut(auth);
+  }
+
   throw new Error(
-    "This account is not activated. Ask an admin for an invite code.",
+    "This account was removed by the organizer. Ask them for a new invite.",
   );
 }
 
@@ -197,12 +207,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password,
         );
       } catch (err) {
-        signingUpRef.current = false;
-        throw new Error(friendlyAuthError(err));
+        const errCode =
+          typeof err === "object" && err !== null && "code" in err
+            ? (err as { code: string }).code
+            : "";
+        if (errCode === "auth/email-already-in-use") {
+          // Try to heal: the previous account may be an orphan (Firestore
+          // profile deleted but Auth record survived). Sign in, check.
+          try {
+            const healCred = await signInWithEmailAndPassword(
+              auth,
+              email.trim(),
+              password,
+            );
+            const existing = await loadUserProfileOnce(healCred.user);
+            if (existing) {
+              await fbSignOut(auth);
+              signingUpRef.current = false;
+              throw new Error(
+                "This email already has an active account. Sign in instead.",
+              );
+            }
+            await healCred.user.delete();
+            cred = await createUserWithEmailAndPassword(
+              auth,
+              email.trim(),
+              password,
+            );
+          } catch (inner) {
+            signingUpRef.current = false;
+            if (
+              inner instanceof Error &&
+              inner.message.startsWith("This email already")
+            ) {
+              throw inner;
+            }
+            throw new Error(
+              "This email is already registered. Try signing in with your old password, then sign out and try again.",
+            );
+          }
+        } else {
+          signingUpRef.current = false;
+          throw new Error(friendlyAuthError(err));
+        }
       }
 
-      // Create the user profile doc.
-      // If the invite carries a participantId, link instantly.
       try {
         await setDoc(doc(firestore, USERS_COLLECTION, cred.user.uid), {
           email: cred.user.email,
@@ -218,13 +267,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       } catch (err) {
         signingUpRef.current = false;
-        await fbSignOut(auth);
+        try {
+          await cred.user.delete();
+        } catch {
+          await fbSignOut(auth);
+        }
         throw new Error(
           "Could not complete activation. The invite may be invalid or expired.",
         );
       }
 
-      // Mark the invite as used (best effort).
       try {
         await markInviteUsed(invite.code, cred.user.uid);
       } catch (err) {
