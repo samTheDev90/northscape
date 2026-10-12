@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Calendar,
   AlertCircle,
+  Link2,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
@@ -20,6 +21,7 @@ import { computeParticipantBalances } from "../lib/finance";
 import { formatBDT } from "../lib/money";
 import Button from "../components/PrimaryButton";
 import EmptyState from "../components/EmptyState";
+import { subscribeUsers, type DirectoryUser } from "../lib/userDirectory";
 
 const COVER_IMG =
   "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80";
@@ -48,15 +50,31 @@ const STATUS_META: Record<
 export default function ParticipantProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { data } = useStore();
-  const { user } = useAuth();
+  const { user, isAdmin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
+
+  // Only signed-in viewers can read the users directory (Firestore rule).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUsers([]);
+      return;
+    }
+    const unsub = subscribeUsers(setUsers);
+    return () => unsub();
+  }, [isAuthenticated]);
 
   const participant = useMemo(
     () => data.participants.find((p) => p.id === id),
     [data.participants, id],
   );
 
-  const isOwnProfile = user?.participantId === id;
+  const linkedUser = useMemo(
+    () => users.find((u) => u.participantId === id),
+    [users, id],
+  );
+
+  const isOwnProfile = !!id && user?.participantId === id;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
@@ -84,6 +102,13 @@ export default function ParticipantProfilePage() {
   const p = participant;
   const meta = STATUS_META[p.status] ?? STATUS_META.confirmed;
   const StatusIcon = meta.icon;
+
+  // Fallbacks: participant's own fields first, then the linked user's.
+  const photoUrl = p.photoUrl || linkedUser?.photoUrl || "";
+  const nickname = p.nickname || linkedUser?.nickname || "";
+  const contact = p.contact || linkedUser?.contact || "";
+  const notes = p.notes || linkedUser?.notes || "";
+
   const initial = p.name.slice(0, 1).toUpperCase();
 
   const balances = computeParticipantBalances(
@@ -93,7 +118,9 @@ export default function ParticipantProfilePage() {
   );
   const balance = balances.find((b) => b.participantId === p.id);
 
-  const contribution = data.contributions.find((c) => c.participantId === p.id);
+  const contribution = data.contributions.find(
+    (c) => c.participantId === p.id,
+  );
 
   const plannedAmount = contribution?.plannedAmount ?? 0;
   const actualAmount = contribution?.actualAmount ?? 0;
@@ -109,6 +136,7 @@ export default function ParticipantProfilePage() {
 
   return (
     <div className="pb-16">
+      {/* COVER */}
       <section className="relative h-56 md:h-64 overflow-hidden">
         <img
           src={COVER_IMG}
@@ -128,14 +156,15 @@ export default function ParticipantProfilePage() {
         </div>
       </section>
 
+      {/* PROFILE CARD */}
       <div className="max-w-4xl mx-auto px-4 md:px-6 -mt-20 md:-mt-24 relative z-10">
         <div className="rounded-3xl border border-purpleDark/60 bg-indigoDeep/95 backdrop-blur-xl shadow-soft p-6 md:p-7">
           <div className="flex flex-col md:flex-row md:items-center gap-5">
             <div className="shrink-0 -mt-16 md:-mt-20">
               <div className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-indigoDeep overflow-hidden bg-purpleDark/70 flex items-center justify-center shadow-glow">
-                {p.photoUrl ? (
+                {photoUrl ? (
                   <img
-                    src={p.photoUrl}
+                    src={photoUrl}
                     alt=""
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -154,8 +183,8 @@ export default function ParticipantProfilePage() {
               <h1 className="font-serif text-2xl md:text-3xl text-textPrimary mb-0.5 truncate">
                 {p.name}
               </h1>
-              {p.nickname && (
-                <p className="text-textSecondary text-sm">“{p.nickname}”</p>
+              {nickname && (
+                <p className="text-textSecondary text-sm">“{nickname}”</p>
               )}
               <div className="flex flex-wrap items-center gap-3 text-xs mt-2">
                 <span
@@ -168,6 +197,14 @@ export default function ParticipantProfilePage() {
                   <UserCircle2 className="w-3.5 h-3.5" />
                   Trip member
                 </span>
+                {isAdmin && linkedUser && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider bg-forest/15 text-forest border-forest/40"
+                    title={linkedUser.email}
+                  >
+                    <Link2 className="w-2.5 h-2.5" /> Account linked
+                  </span>
+                )}
               </div>
             </div>
 
@@ -182,26 +219,26 @@ export default function ParticipantProfilePage() {
             )}
           </div>
 
-          {(p.contact || p.notes) && (
+          {(contact || notes) && (
             <div className="mt-6 pt-6 border-t border-purpleDark/40 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              {p.contact && (
+              {contact && (
                 <div>
                   <p className="text-[11px] text-textSecondary uppercase tracking-wider mb-1">
                     Contact
                   </p>
                   <p className="text-textPrimary inline-flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-textSecondary" />
-                    {p.contact}
+                    {contact}
                   </p>
                 </div>
               )}
-              {p.notes && (
-                <div className={p.contact ? "" : "md:col-span-2"}>
+              {notes && (
+                <div className={contact ? "" : "md:col-span-2"}>
                   <p className="text-[11px] text-textSecondary uppercase tracking-wider mb-1">
                     Notes
                   </p>
                   <p className="text-textPrimary text-xs leading-relaxed">
-                    {p.notes}
+                    {notes}
                   </p>
                 </div>
               )}
@@ -209,6 +246,7 @@ export default function ParticipantProfilePage() {
           )}
         </div>
 
+        {/* STATS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-8">
           <StatBox
             label="Contribution"
@@ -238,28 +276,29 @@ export default function ParticipantProfilePage() {
               balance?.state === "settled"
                 ? "Settled"
                 : balance
-                  ? `${balance.state === "receives" ? "+" : "-"}${formatBDT(
-                      Math.abs(balance.net),
-                    )}`
-                  : "—"
+                ? `${balance.state === "receives" ? "+" : "-"}${formatBDT(
+                    Math.abs(balance.net),
+                  )}`
+                : "—"
             }
             sub={
               balance?.state === "owes"
                 ? "Owes the group"
                 : balance?.state === "receives"
-                  ? "Receives from group"
-                  : "All square"
+                ? "Receives from group"
+                : "All square"
             }
             accent={
               balance?.state === "owes"
                 ? "coral"
                 : balance?.state === "receives"
-                  ? "forest"
-                  : "muted"
+                ? "forest"
+                : "muted"
             }
           />
         </div>
 
+        {/* PROGRESS */}
         {plannedAmount > 0 && (
           <section className="mt-6 rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 p-6">
             <div className="flex items-center justify-between mb-3">
@@ -284,6 +323,7 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
+        {/* DIRECT PAYMENTS */}
         {expensesThisPersonPaid.length > 0 && (
           <section className="mt-6 rounded-2xl border border-purpleDark/60 bg-indigoDeep/70 overflow-hidden">
             <div className="px-6 py-4 border-b border-purpleDark/60 flex items-center justify-between">
@@ -323,6 +363,7 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
+        {/* BADGES (own profile only) */}
         {isOwnProfile && (
           <section className="mt-6">
             <h2 className="font-serif text-lg text-textPrimary mb-4 flex items-center gap-2">
@@ -345,6 +386,7 @@ export default function ParticipantProfilePage() {
           </section>
         )}
 
+        {/* BACK */}
         <div className="mt-8 flex justify-center">
           <Link to="/participants">
             <Button variant="secondary">
@@ -385,7 +427,9 @@ function StatBox({
       >
         {value}
       </p>
-      {sub && <p className="text-[11px] text-textSecondary truncate">{sub}</p>}
+      {sub && (
+        <p className="text-[11px] text-textSecondary truncate">{sub}</p>
+      )}
     </div>
   );
 }
@@ -429,4 +473,4 @@ function BadgeCard({
       </p>
     </div>
   );
-}
+                }
