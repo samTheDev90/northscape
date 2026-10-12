@@ -70,9 +70,6 @@ export default function ParticipantsPage() {
   const [emailingFor, setEmailingFor] = useState<Participant | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
 
-  // Subscribe to users for any signed-in viewer — used to show the
-  // linked account's photo on participant cards. Firestore rules
-  // require auth for reading /users.
   useEffect(() => {
     if (!isAuthenticated) {
       setUsers([]);
@@ -244,7 +241,9 @@ export default function ParticipantsPage() {
             const contrib = contributionsMap[p.id] ?? { planned: 0, actual: 0 };
             const bal = balanceMap[p.id];
             const linkedUser = userByParticipant[p.id];
-            const photoUrl = p.photoUrl || linkedUser?.photoUrl || "";
+            // Linked user's photo wins when present.
+            const photoUrl = linkedUser?.photoUrl || p.photoUrl || "";
+            const displayNickname = linkedUser?.nickname || p.nickname;
             return (
               <div
                 key={p.id}
@@ -273,9 +272,9 @@ export default function ParticipantsPage() {
                       <p className="text-textPrimary font-medium truncate group-hover:text-peach transition-colors">
                         {p.name}
                       </p>
-                      {p.nickname && (
+                      {displayNickname && (
                         <p className="text-[11px] text-textSecondary truncate">
-                          “{p.nickname}”
+                          “{displayNickname}”
                         </p>
                       )}
                       <span
@@ -315,7 +314,6 @@ export default function ParticipantsPage() {
                   </AdminOnly>
                 </div>
 
-                {/* Linked account info — admins only */}
                 <AdminOnly>
                   <div className="mb-4">
                     {linkedUser ? (
@@ -641,8 +639,9 @@ function ParticipantModal({
         />
 
         <p className="text-[11px] text-lavenderMist">
-          Tip: after saving, use "Link an account" on the participant card to
-          connect this person to a signed-up user.
+          Tip: if this person has a linked account, the photo, nickname,
+          contact, and notes they set on their own profile will override
+          these values.
         </p>
 
         <div className="flex items-center justify-between gap-3 pt-2">
@@ -775,4 +774,4 @@ function ContributionModal({
       </div>
     </Modal>
   );
-      }
+                }
