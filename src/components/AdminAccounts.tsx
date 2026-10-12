@@ -168,15 +168,16 @@ export default function AdminAccounts() {
     setJustCreated(invite);
 
     // Send the invite code by email if requested.
+    // NOTE: the greeting ("Hi X,") is added by the EmailJS template itself,
+    // so the message body here starts directly with the content.
     let emailed = false;
     if (params.sendEmail && invite.email) {
       try {
         await sendOne({
           to_email: invite.email,
           to_name: invite.displayName,
-          subject: `Your invite to ${data.trip.name}`,
+          subject: `You're invited to ${data.trip.name}`,
           message:
-            `Hi ${invite.displayName},\n\n` +
             `You've been invited to join ${data.trip.name} on Northscape — a private trip planner for our group.\n\n` +
             `Your invite code is:\n\n` +
             `    ${invite.code}\n\n` +
@@ -847,4 +848,4 @@ function ShowCodeModal({
       </div>
     </Modal>
   );
-}
+        }
