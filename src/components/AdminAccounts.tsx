@@ -12,6 +12,7 @@ import {
   Link2Off,
   Shield,
   Mail,
+  Send,
 } from "lucide-react";
 import { doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { firestore, USERS_COLLECTION } from "../lib/firebase";
@@ -22,6 +23,7 @@ import { useConfirm } from "./ConfirmProvider";
 import { deleteInvite, subscribeInvites } from "../lib/invites";
 import { subscribeUsers, type DirectoryUser } from "../lib/userDirectory";
 import { getUnlinkedUsers, normalizeName } from "../lib/linking";
+import { sendOne } from "../lib/email";
 import type { Invite, UserRole } from "../lib/types";
 import Button from "./PrimaryButton";
 import { Select, TextInput } from "./FormField";
@@ -41,6 +43,7 @@ export default function AdminAccounts() {
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [creating, setCreating] = useState(false);
   const [justCreated, setJustCreated] = useState<Invite | null>(null);
+  const [justCreatedEmailed, setJustCreatedEmailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
 
@@ -95,7 +98,10 @@ export default function AdminAccounts() {
       (p) => normalizeName(p.name) === normalizeName(u.displayName),
     );
     if (!match) {
-      toast.error(`No participant named "${u.displayName}" found.`, "No match");
+      toast.error(
+        `No participant named "${u.displayName}" found.`,
+        "No match",
+      );
       return;
     }
     const taken = users.some(
@@ -112,9 +118,15 @@ export default function AdminAccounts() {
       await updateDoc(doc(firestore, USERS_COLLECTION, u.uid), {
         participantId: match.id,
       });
-      toast.success(`${u.displayName} linked to "${match.name}"`, "Linked");
+      toast.success(
+        `${u.displayName} linked to "${match.name}"`,
+        "Linked",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Link failed.", "Error");
+      toast.error(
+        err instanceof Error ? err.message : "Link failed.",
+        "Error",
+      );
     }
   };
 
@@ -122,7 +134,8 @@ export default function AdminAccounts() {
     displayName: string;
     email: string | null;
     role: UserRole;
-  }) => {
+    sendEmail: boolean;
+  }): Promise<{ emailed: boolean }> => {
     let participantId: string | null = null;
 
     if (params.role === "participant") {
@@ -150,10 +163,52 @@ export default function AdminAccounts() {
       createdBy: currentUser?.id ?? "",
       participantId,
     });
+
     setCreating(false);
     setJustCreated(invite);
+
+    // Send the invite code by email if requested.
+    let emailed = false;
+    if (params.sendEmail && invite.email) {
+      try {
+        await sendOne({
+          to_email: invite.email,
+          to_name: invite.displayName,
+          subject: `Your invite to ${data.trip.name}`,
+          message:
+            `Hi ${invite.displayName},\n\n` +
+            `You've been invited to join ${data.trip.name} on Northscape — a private trip planner for our group.\n\n` +
+            `Your invite code is:\n\n` +
+            `    ${invite.code}\n\n` +
+            `To activate your account:\n` +
+            `1. Open the app (link below)\n` +
+            `2. Click "Redeem Invite"\n` +
+            `3. Enter the code above\n` +
+            `4. Choose your own password\n\n` +
+            `App link: https://samthedev90.github.io/northscape/\n\n` +
+            `This code can only be used once. If you didn't expect this email, you can safely ignore it.`,
+          trip_name: data.trip.name,
+        });
+        emailed = true;
+        toast.success(
+          `Invite sent to ${invite.email}`,
+          "Email delivered",
+        );
+      } catch (err) {
+        console.error("Failed to email invite:", err);
+        toast.warning(
+          `Invite created, but email failed. Copy the code and send it manually.`,
+          "Email failed",
+        );
+      }
+    }
+
+    setJustCreatedEmailed(emailed);
     setError(null);
-    toast.success("Invite code created", "Ready to share");
+    if (!params.sendEmail) {
+      toast.success("Invite code created", "Ready to share");
+    }
+    return { emailed };
   };
 
   const handleDeleteUser = async (u: DirectoryUser) => {
@@ -222,9 +277,8 @@ export default function AdminAccounts() {
                 Invite participants
               </h2>
               <p className="text-xs text-textSecondary max-w-md">
-                When you create a participant invite, Northscape also creates
-                their participant record. The moment they redeem, they're linked
-                automatically.
+                Create an invite — you can send the code by email in one
+                step, or copy it and share it however you like.
               </p>
             </div>
             <Button onClick={() => setCreating(true)}>
@@ -240,7 +294,8 @@ export default function AdminAccounts() {
 
           {active.length === 0 && used.length === 0 && (
             <p className="text-sm text-textSecondary">
-              No invites yet. Click "New invite" to add your first participant.
+              No invites yet. Click "New invite" to add your first
+              participant.
             </p>
           )}
 
@@ -261,7 +316,8 @@ export default function AdminAccounts() {
                   onDelete={async () => {
                     const ok = await confirm({
                       title: `Delete invite ${i.code}?`,
-                      message: "This code will no longer be usable to sign up.",
+                      message:
+                        "This code will no longer be usable to sign up.",
                       confirmText: "Delete",
                       danger: true,
                     });
@@ -438,7 +494,11 @@ export default function AdminAccounts() {
 
       <ShowCodeModal
         invite={justCreated}
-        onClose={() => setJustCreated(null)}
+        emailed={justCreatedEmailed}
+        onClose={() => {
+          setJustCreated(null);
+          setJustCreatedEmailed(false);
+        }}
       />
 
       <EmailComposerModal
@@ -540,12 +600,14 @@ function InviteModal({
     displayName: string;
     email: string | null;
     role: UserRole;
-  }) => Promise<void>;
+    sendEmail: boolean;
+  }) => Promise<{ emailed: boolean }>;
   onError: (msg: string) => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [lockEmail, setLockEmail] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
   const [role, setRole] = useState<UserRole>("participant");
   const [busy, setBusy] = useState(false);
 
@@ -556,11 +618,13 @@ function InviteModal({
       setName("");
       setEmail("");
       setLockEmail(false);
+      setSendEmail(true);
       setRole("participant");
     }
   }
 
   const canSave = name.trim().length > 0;
+  const willSendEmail = lockEmail && sendEmail && email.trim().length > 0;
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -570,9 +634,12 @@ function InviteModal({
         displayName: name.trim(),
         email: lockEmail ? email.trim().toLowerCase() : null,
         role,
+        sendEmail: willSendEmail,
       });
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to create invite.");
+      onError(
+        err instanceof Error ? err.message : "Failed to create invite.",
+      );
     } finally {
       setBusy(false);
     }
@@ -613,6 +680,27 @@ function InviteModal({
           />
         )}
 
+        {lockEmail && (
+          <label className="flex items-start gap-2 px-3 py-2.5 rounded-lg border border-peach/40 bg-peach/5 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={sendEmail}
+              onChange={(e) => setSendEmail(e.target.checked)}
+              className="accent-peach mt-0.5"
+            />
+            <div>
+              <span className="text-textPrimary inline-flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5 text-peach" />
+                Send the invite code to this email
+              </span>
+              <p className="text-[11px] text-textSecondary mt-0.5">
+                Sends a personal invite email with the code and a link to the
+                app, so you don't have to copy-paste anything.
+              </p>
+            </div>
+          </label>
+        )}
+
         <Select
           label="Role"
           value={role}
@@ -639,10 +727,12 @@ function InviteModal({
           <Button onClick={handleSave} disabled={!canSave || busy}>
             {busy ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : willSendEmail ? (
+              <Send className="w-4 h-4" />
             ) : (
               <Ticket className="w-4 h-4" />
             )}
-            Generate invite
+            {willSendEmail ? "Create & send" : "Generate invite"}
           </Button>
         </div>
       </div>
@@ -652,9 +742,11 @@ function InviteModal({
 
 function ShowCodeModal({
   invite,
+  emailed,
   onClose,
 }: {
   invite: Invite | null;
+  emailed: boolean;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -674,12 +766,32 @@ function ShowCodeModal({
   return (
     <Modal open={true} onClose={onClose} title="Invite created">
       <div className="space-y-4">
-        <p className="text-sm text-textSecondary">
-          Share this code with{" "}
-          <span className="text-textPrimary">{invite.displayName}</span>. They
-          will use it on the sign-in page under{" "}
-          <span className="text-peach">"Redeem Invite"</span>.
-        </p>
+        {emailed && invite.email ? (
+          <div className="rounded-xl border border-forest/40 bg-forest/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-forest/15 border border-forest/40 flex items-center justify-center shrink-0">
+                <Check className="w-4 h-4 text-forest" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-textPrimary font-medium mb-0.5">
+                  Invite sent
+                </p>
+                <p className="text-xs text-textSecondary">
+                  Delivered to{" "}
+                  <span className="text-textPrimary">{invite.email}</span>.
+                  They'll find the code and instructions in the email.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-textSecondary">
+            Share this code with{" "}
+            <span className="text-textPrimary">{invite.displayName}</span>.
+            They will use it on the sign-in page under{" "}
+            <span className="text-peach">"Redeem Invite"</span>.
+          </p>
+        )}
 
         <div className="rounded-xl border-2 border-dashed border-peach/50 bg-peach/5 p-6 text-center">
           <p className="text-[11px] text-textSecondary uppercase tracking-wider mb-2">
@@ -707,8 +819,8 @@ function ShowCodeModal({
           )}
           {invite.participantId && (
             <p className="text-forest">
-              A participant record was created and will link automatically when
-              redeemed.
+              A participant record was created and will link automatically
+              when redeemed.
             </p>
           )}
         </div>
